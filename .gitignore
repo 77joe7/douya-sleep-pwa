@@ -1,0 +1,18 @@
+# 依赖与本地产物（本仓库为纯静态 PWA，无构建步骤）
+node_modules/
+npm-debug.log*
+.DS_Store
+
+# 不应进入发布仓库的开发/测试脚本
+e2e_local.js
+e2e_fix.js
+test_v25.js
+pred_v3.js
+rewrite_timeline.py
+check_result.txt
+*.local
+
+# 编辑器/系统
+.idea/
+.vscode/
+*.swp

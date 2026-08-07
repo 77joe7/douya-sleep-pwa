@@ -1,0 +1,65 @@
+# =============================================================================
+# Deploy to GitHub Pages — 速率限制防护版
+# -----------------------------------------------------------------------------
+# 设计目标（对应用户要求）：
+#   1. 自动化请求频率控制在 GitHub 允许范围内
+#      - 仅 `push` 到 `main` 触发，不挂 `pull_request` / 不频繁手动触发
+#      - `concurrency.cancel-in-progress` 取消重叠运行，避免重复 API 调用
+#   2. 使用缓存减少重复请求
+#      - `actions/cache` 缓存 npm（无构建依赖时仍保留缓存层，避免重复下载 action）
+#   3. 高频访问 GitHub API 时使用带认证的令牌并遵循配额
+#      - 全程使用官方 `GITHUB_TOKEN`（OIDC `id-token: write`），鉴权后配额更高
+#      - 不手动轮询 REST Pages API，改用官方 `actions/deploy-pages`
+#   4. 部署产物通过 GitHub Pages 发布，避免不必要重复上传
+#      - 每次运行仅 `upload-pages-artifact` 一次 + `deploy-pages` 一次
+#      - 静态站点无需构建，跳过 npm install，从根目录直接发布
+# =============================================================================
+
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  # 不启用 pull_request：避免 PR 也触发部署造成配额浪费与限流
+  workflow_dispatch:
+
+# 最小权限原则 + 官方令牌鉴权（更高配额）
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 同一时间只跑一个 Pages 部署；新推送会取消进行中的旧运行
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 缓存层：减少重复下载 action / 依赖（即使当前无构建依赖也保留，便于后续扩展）
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      # 静态站点：仓库根即站点内容（含 .nojekyll），无需构建
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      # 官方部署 action：单次部署调用，远优于反复调用 REST Pages API
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

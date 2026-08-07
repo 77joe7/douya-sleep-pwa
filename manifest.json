@@ -1,0 +1,41 @@
+{
+  "name": "BabySleepTracker - 宝宝睡眠训练",
+  "short_name": "宝宝睡眠",
+  "description": "婴儿睡眠训练记录应用 - 基于间接安抚法的每日睡眠追踪",
+  "id": "./",
+  "start_url": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F4ECE3",
+  "theme_color": "#FF9A6C",
+  "categories": ["health", "lifestyle"],
+  "lang": "zh-CN",
+  "dir": "ltr",
+  "scope": "./",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "icons/screenshot-timeline.png",
+      "type": "image/png",
+      "sizes": "390x844",
+      "form_factor": "narrow",
+      "label": "时间轴主页"
+    }
+  ],
+  "prefer_related_applications": false,
+  "related_applications": [],
+  "display_override": ["standalone", "minimal-ui"]
+}
