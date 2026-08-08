@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>小豆芽 · 宝宝睡眠 v3.3.1</title>
+<title>小豆芽 · 宝宝睡眠 v3.4.1</title>
 
 <!-- PWA -->
 <link rel="manifest" href="manifest.json">
@@ -450,14 +450,25 @@
     min-height: 52px;
   }
   .event-time-wrap { display: flex; flex-direction: column; }
-  .event-time-now {
-    font-size: 32px;
-    font-weight: 800;
-    line-height: 1.15;
-    color: var(--text-primary);
-    letter-spacing: -0.5px;
-  }
-  .tl-date-sm {
+    .event-time-now {
+      font-size: 32px;
+      font-weight: 800;
+      line-height: 1.15;
+      color: var(--text-primary);
+      letter-spacing: -0.5px;
+    }
+    /* v3.4.0 需求⑦：右上角仅保留时间（HH:mm），加大字号加粗、点击返回今天 */
+    .tl-time-now {
+      font-size: 40px;
+      font-weight: 900;
+      line-height: 1.05;
+      color: var(--text-primary);
+      letter-spacing: -1px;
+      cursor: pointer;
+      -webkit-tap-highlight-color: rgba(255,154,108,0.15);
+    }
+    .tl-time-now:active { color: var(--primary); }
+    .tl-date-sm {
     font-size: 13px;
     font-weight: 500;
     color: var(--secondary);
@@ -2035,8 +2046,8 @@
   <button onclick="dismissInstallGuide()">我知道了</button>
 </div>
 
-<script src="./config.js?v=3.3.1"></script>
-<script src="./app-sync.js?v=3.3.1"></script>
+<script src="./config.js?v=3.4.1"></script>
+<script src="./app-sync.js?v=3.4.1"></script>
 <script>
 (function(){
   var ua=navigator.userAgent;
@@ -2153,8 +2164,7 @@ function dismissInstallGuide(){
       <div class="tl-top-bar">
         <div class="tl-time-wrap">
           <div class="tl-welcome" id="tlWelcome">欢迎回来，家庭成员</div>
-          <div class="tl-time-now" id="tlTimeNow">--:--</div>
-          <div class="tl-date-sm" id="tlDateSm" onclick="goToToday()" style="cursor:pointer;" title="点击返回今天">--</div>
+          <div class="tl-time-now" id="tlTimeNow" onclick="goToToday()" style="cursor:pointer;" title="点击返回今天">--:--</div>
         </div>
         <div class="tl-train-badge" id="tlTrainDay">训练 Day --</div>
       </div>
@@ -2224,6 +2234,7 @@ function dismissInstallGuide(){
               <label class="filter-row"><input type="checkbox" data-fv="feed" checked onchange="onFilter(this)">🍼 喂奶</label>
               <label class="filter-row"><input type="checkbox" data-fv="routine" checked onchange="onFilter(this)">📋 日常</label>
               <label class="filter-row"><input type="checkbox" data-fv="cry" checked onchange="onFilter(this)">🥺 哭闹</label>
+              <label class="filter-row"><input type="checkbox" data-fv="other" checked onchange="onFilter(this)">📝 其他</label>
             </div>
           </div>
         </div>
@@ -2830,7 +2841,7 @@ function dismissInstallGuide(){
 
     <!-- 侧边浮动按钮：返回顶部 / 刷新 -->
     <div class="side-float" id="sideFloat">
-      <button class="side-btn" onclick="location.reload(true)" title="强制刷新" aria-label="刷新">
+      <button class="side-btn" onclick="refreshPage()" title="刷新并同步" aria-label="刷新">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
       </button>
       <button class="side-btn" onclick="document.getElementById('pageTimeline').scrollTo({top:0,behavior:'smooth'})" title="回到顶部" aria-label="回到顶部">
@@ -3012,7 +3023,7 @@ function dismissInstallGuide(){
         <div class="log-row"><span class="log-field-label">日期</span><span class="log-field-value" id="detailDateDisplay" onclick="openDatePicker()" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(26,26,26,0.03);border-radius:10px;min-height:40px;"><span id="detailDateText" style="color:var(--text-primary);font-size:14px;">--</span><span style="color:var(--text-tertiary);font-size:12px;">📅</span><input type="hidden" id="detailDate"></span></div>
         <div class="log-row"><span class="log-field-label">时间</span><span class="log-field-value" id="detailTimeDisplay" onclick="openTimePicker()" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(26,26,26,0.03);border-radius:10px;min-height:40px;"><span id="detailTimeText" style="color:var(--text-primary);font-size:14px;">--</span><span style="color:var(--text-tertiary);font-size:12px;">🕐</span><input type="hidden" id="detailTime"></span></div>
         <div class="log-row"><span class="log-field-label">持续</span><span class="log-field-value" id="detailDuration" style="font-weight:600;color:#4F7FD9;">--</span></div>
-        <div class="log-row"><span class="log-field-label">强度</span><span class="log-field-value"><select id="detailIntensity" style="border:1.5px solid rgba(26,26,26,0.1);border-radius:10px;padding:6px 10px;font-size:14px;background:var(--card);width:100%;"><option value="">--</option><option value="1">😐 轻微</option><option value="2">😣 中等</option><option value="3">😫 强烈</option></select></span></div>
+        <div class="log-row" id="detailIntensityRow"><span class="log-field-label">强度</span><span class="log-field-value"><select id="detailIntensity" style="border:1.5px solid rgba(26,26,26,0.1);border-radius:10px;padding:6px 10px;font-size:14px;background:var(--card);width:100%;"><option value="">--</option><option value="1">😐 轻微</option><option value="2">😣 中等</option><option value="3">😫 强烈</option></select></span></div>
         <div class="log-row"><span class="log-field-label">备注</span><span class="log-field-value"><textarea class="log-field-entry" id="detailNote" placeholder="添加备注…" rows="2" style="resize:vertical;min-height:44px;font-size:14px;font-family:inherit;"></textarea></span></div>
         <div id="detailExtra"></div>
       </div>
@@ -3158,10 +3169,37 @@ function dismissInstallGuide(){
     if (!Number.isFinite(ts)) return null;
     const normalized = { ...event, ts };
     normalized.id = String(normalized.id || ('e' + ts + Math.random().toString(36).slice(2, 7)));
-    normalized.time = normalized.time || new Date(ts).toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'});
+    // v3.4.1 Bug B：time 始终由 ts 派生，保证「时间轴显示的时间」与「排序/归日所用的 ts」永不脱节
+    normalized.time = new Date(ts).toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'});
     normalized.title = String(normalized.title || '记录');
     normalized.detail = String(normalized.detail || '');
     return normalized;
+  }
+
+  // ============ v3.4.1 事件安全访问工具 ============
+  /**
+   * 判断是否为可安全渲染的事件对象（非空且 ts 合法）。
+   * 任何遍历 events 的渲染逻辑都应先经过该过滤，避免单条脏数据抛异常导致整条时间轴不刷新。
+   */
+  function isValidEvent(event) {
+    return !!event && typeof event === 'object' && Number.isFinite(Number(event.ts));
+  }
+
+  /** 本地时区「同一天」判定：避免 UTC 偏移 / Invalid Date 造成的跨天错位。 */
+  function isSameLocalDay(a, b) {
+    const da = (a instanceof Date) ? a : new Date(Number(a));
+    const db = (b instanceof Date) ? b : new Date(Number(b));
+    if (isNaN(da.getTime()) || isNaN(db.getTime())) return false;
+    return da.getFullYear() === db.getFullYear()
+        && da.getMonth() === db.getMonth()
+        && da.getDate() === db.getDate();
+  }
+
+  /** 按事件 id 查找事件对象；找不到返回 null。 */
+  function findEventById(id) {
+    if (id === null || id === undefined) return null;
+    const key = String(id);
+    return events.find(event => isValidEvent(event) && String(event.id) === key) || null;
   }
 
   function escapeHTML(value) {
@@ -3275,8 +3313,8 @@ function dismissInstallGuide(){
     Object.keys(toggles).forEach(key => {
       const startType = key === 'cry' ? 'cry_start' : key + '_start';
       const endTypes = key === 'cry' ? ['cry', 'cry_end'] : [key + '_end'];
-      const starts = events.filter(event => event.type === startType && (key !== 'nap' || isSleepStart(event))).sort((a,b) => b.ts-a.ts);
-      const ends = events.filter(event => endTypes.includes(event.type)).sort((a,b) => b.ts-a.ts);
+      const starts = events.filter(event => isValidEvent(event) && event.type === startType && (key !== 'nap' || isSleepStart(event))).sort((a,b) => b.ts-a.ts);
+      const ends = events.filter(event => isValidEvent(event) && endTypes.includes(event.type)).sort((a,b) => b.ts-a.ts);
       const lastStart = starts[0];
       const lastEnd = ends[0];
       if (lastStart && (!lastEnd || lastStart.ts > lastEnd.ts)) {
@@ -3396,19 +3434,32 @@ function dismissInstallGuide(){
   }
 
   function addEvent(evt) {
+    // v3.4.1 Bug B：先确保 ts 合法（非法时回退到当前时间），再归一化；
+    // 归一并防御性过滤，确保绝不会把 null 推进 events（否则会导致后续整条时间轴渲染抛错而不刷新）。
     const ts = Number.isFinite(toTimestamp(evt.ts)) ? toTimestamp(evt.ts) : Date.now();
     const id = String(evt.id || ('e' + ts + Math.random().toString(36).slice(2, 7)));
-    const time = evt.time || new Date(ts).toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'});
     const recorder = window.CloudSync?.getRecorder?.() || null;
-    const added = normalizeEvent({ ...evt, id, time, ts,
+    const added = normalizeEvent({ ...evt, id, ts,
       recorderId: evt.recorderId || recorder?.id || '',
       recorderName: evt.recorderName || recorder?.name || '',
       recorderRole: evt.recorderRole || recorder?.role || ''
     });
+    if (!added) {
+      console.warn('[addEvent] 事件归一化失败，已忽略：', evt);
+      return null;
+    }
     events.push(added);
     events.sort((a, b) => a.ts - b.ts);
     saveEvents();
-    renderTimeline();
+
+    // v3.4.1 Bug B：若新记录落在非当前查看的日期（如跨 midnight、或用户在历史日浏览时补记），
+    // 自动切换到该记录所在的那一天，保证「快速记录后立即可见」，并给出轻提示。
+    if (!isSameLocalDay(ts, selectedDate)) {
+      selectDate(new Date(ts));
+      showToast('📅 已跳转到记录所属日期');
+    } else {
+      renderTimeline();
+    }
     renderLogDay();
     updatePrediction();
     renderDataLog();
@@ -3435,7 +3486,7 @@ function dismissInstallGuide(){
 
   function eventsOnDate(date) {
     const bounds = dayBounds(date);
-    return events.filter(event => event.ts >= bounds.start && event.ts < bounds.end);
+    return events.filter(event => isValidEvent(event) && event.ts >= bounds.start && event.ts < bounds.end);
   }
 
   function isSleepStart(event) {
@@ -3658,9 +3709,9 @@ function dismissInstallGuide(){
     const totalDays = parseInt(localStorage.getItem('trainDays') || '14') || 14;
     const trainEnd = new Date(trainStart.getTime() + (totalDays - 1) * 86400000);
 
-    // 动态扩展范围（确保覆盖训练周期 + today）
-    const start = new Date(Math.min(trainStart.getTime(), today.getTime() - 3*86400000));
-    const end = new Date(Math.max(trainEnd.getTime(), today.getTime() + 3*86400000));
+    // v3.4.0 需求④：可滑动范围 = 训练开始日 -2 天 ～ 训练结束日 +2 天
+    const start = new Date(trainStart.getTime() - 2 * 86400000);
+    const end = new Date(trainEnd.getTime() + 2 * 86400000);
     dateRangeStart = Math.floor((start.getTime() - today.getTime()) / 86400000);
     dateRangeEnd = Math.floor((end.getTime() - today.getTime()) / 86400000);
 
@@ -3674,7 +3725,7 @@ function dismissInstallGuide(){
       const isToday = d.toDateString() === today.toDateString();
       const isSelected = d.toDateString() === selectedDate.toDateString();
       const isTrainDay = d.getTime() >= trainStart.getTime() && d.getTime() <= trainEnd.getTime();
-      const hasData = events.some(e => new Date(e.ts).toDateString() === d.toDateString());
+      const hasData = events.some(e => isValidEvent(e) && isSameLocalDay(e.ts, d));
       if (d.getMonth() !== prevMonth) {
         days.push({ kind: 'month', label: (d.getMonth() + 1) + '月' });
         prevMonth = d.getMonth();
@@ -3806,11 +3857,13 @@ function dismissInstallGuide(){
   window.onFilter = function(cb) {
     const all = document.querySelector('.filter-row input[data-fv="all"]');
     const items = document.querySelectorAll('.filter-row input[data-fv]:not([data-fv="all"])');
-    if (cb.dataset.ft === 'all') { items.forEach(c => c.checked = cb.checked); }
+    // v3.4.1 修复：HTML 复选框使用 data-fv，这里必须与之一致（原误读为 data-ft，
+    // 会把 undefined 塞进 timelineFilters，导致所有事件被判定为不可见 → 整条时间轴空白）。
+    if (cb.dataset.fv === 'all') { items.forEach(c => c.checked = cb.checked); }
     else if (!cb.checked) { if (all) all.checked = false; }
     if (all) all.checked = [...items].every(c => c.checked);
     timelineFilters.clear();
-    items.forEach(c => { if (c.checked) timelineFilters.add(c.dataset.ft); });
+    items.forEach(c => { if (c.checked) timelineFilters.add(c.dataset.fv); });
     renderTimeline();
   };
 
@@ -3822,8 +3875,10 @@ function dismissInstallGuide(){
   function renderTimeline() {
     var container = document.getElementById('timelineEvents');
     if (!container) return;
+    // v3.4.1 Bug B：防御性过滤脏数据 + 用本地时区「同一天」归日，
+    // 避免 Invalid Date / UTC 偏移导致的跨午夜错位（事件永远不显示在某一天）。
     var dayEvents = events.filter(function(e) {
-      return new Date(e.ts).toDateString() === selectedDate.toDateString();
+      return isValidEvent(e) && isSameLocalDay(e.ts, selectedDate);
     });
     var filtered = dayEvents.filter(function(e) { return timelineFilters.has(eventCategory(e)); });
     var sorted = filtered.slice().sort(function(a,b) { return b.ts - a.ts; });
@@ -3838,7 +3893,9 @@ function dismissInstallGuide(){
 
     container.innerHTML = sorted.length ? sorted.map(function(ev) {
       var cat = eventCategory(ev);
-      var idx = events.indexOf(ev);
+      // v3.4.1 Bug A：以稳定的事件 id 作为打开详情的凭据（而非数组下标），
+      // 即使后续增删导致下标漂移，也能可靠打开正确事件。
+      var evId = String(ev.id);
       var s = catStyle[cat] || catStyle.other;
       var rec = ev.recorderName || ev.recorder_name;
       var role = ev.recorderRole || ev.recorder_role;
@@ -3849,7 +3906,7 @@ function dismissInstallGuide(){
       /* 编辑者文字 */
       var recText = rec ? (role ? role + '·' : '') + rec : '';
 
-      return '<div class="timeline-event" data-event-index="' + idx + '" onclick="openEventDetail(' + idx + ')">' +
+      return '<div class="timeline-event" data-event-id="' + escapeHTML(evId) + '" role="button" tabindex="0">' +
         /* 时间轴节点 */
         '<div class="tl-node ' + cat + '"></div>' +
         /* 卡片内容 */
@@ -3951,7 +4008,7 @@ function dismissInstallGuide(){
   }
 
   function findNearestSleepStart(ts) {
-    const starts = events.filter(e => e.type === 'nap_start').sort((a, b) => a.ts - b.ts);
+    const starts = events.filter(e => isValidEvent(e) && e.type === 'nap_start').sort((a, b) => a.ts - b.ts);
     if (!starts.length) return null;
     let best = null;
     for (const s of starts) {
@@ -3971,15 +4028,31 @@ function dismissInstallGuide(){
   }
 
   // ========== 事件详情弹窗（核心缺失函数 — 已补回） ==========
-  window.openEventDetail = function openEventDetail(idx) {
-    if (idx === null || idx === undefined || idx < 0 || idx >= events.length) {
+  let _lastOpenDetailId = null;
+  let _lastOpenDetailAt = 0;
+  // 入参既支持事件 id（推荐，稳定），也兼容旧式数组下标（向后兼容）。
+  window.openEventDetail = function openEventDetail(arg) {
+    if (arg === null || arg === undefined) {
       showToast('⚠ 无法打开事件详情');
       return;
     }
-    var ev = events[idx];
-    if (!ev) { showToast('⚠ 事件数据不存在'); return; }
+    // 统一为事件 id
+    const ev = Number.isInteger(arg) ? events[arg] : findEventById(arg);
+    if (!isValidEvent(ev)) {
+      showToast('⚠ 事件数据不存在');
+      return;
+    }
+    const targetId = String(ev.id);
 
-    currentDetailEventId = idx;
+    // v3.4.1 Bug A：去重守卫 —— 同一事件在 400ms 内不重复打开（杜绝双绑定/双触发造成的连开）。
+    const now = Date.now();
+    if (targetId === _lastOpenDetailId && now - _lastOpenDetailAt < 400) {
+      return;
+    }
+    _lastOpenDetailId = targetId;
+    _lastOpenDetailAt = now;
+
+    currentDetailEventId = targetId;
 
     // 填充表单字段
     document.getElementById('detailType').textContent = ev.title || ev.type || '--';
@@ -3993,6 +4066,11 @@ function dismissInstallGuide(){
     document.getElementById('detailTimeText').textContent = timeVal;
     document.getElementById('detailNote').value = ev.detail || '';
     document.getElementById('detailIntensity').value = (ev.intensity !== undefined && ev.intensity !== null) ? String(ev.intensity) : '';
+    // v3.4.0 需求③：强度字段仅对哭闹类事件显示，其它类型隐藏整行
+    var detailIntensityRow = document.getElementById('detailIntensityRow');
+    if (detailIntensityRow) {
+      detailIntensityRow.style.display = (ev.type === 'cry' || ev.type === 'cry_start') ? '' : 'none';
+    }
 
     // 更新时长
     updateDetailDuration();
@@ -4028,14 +4106,15 @@ function dismissInstallGuide(){
   }
 
   function saveEventDetail() {
-    const idx = currentDetailEventId;
-    if (idx === null || idx === undefined) return;
-    const event = events[idx];
+    const event = findEventById(currentDetailEventId);
     if (!event) { showToast('⚠ 无法保存，请刷新'); return; }
     event.time = document.getElementById('detailTime').value;
     event.detail = document.getElementById('detailNote').value;
     const intensityVal = document.getElementById('detailIntensity').value;
-    if (intensityVal !== '' && intensityVal !== undefined) event.intensity = parseInt(intensityVal);
+    // v3.4.0 需求③：仅当强度行可见（哭闹类事件）时才写入 intensity，其它类型不写
+    const intensityRowEl = document.getElementById('detailIntensityRow');
+    const intensityVisible = intensityRowEl ? (intensityRowEl.style.display !== 'none') : (event.type === 'cry');
+    if (intensityVisible && intensityVal !== '' && intensityVal !== undefined) event.intensity = parseInt(intensityVal);
     else if (event.intensity !== undefined) delete event.intensity;
     const dateStr = document.getElementById('detailDate').value;
     const parts = event.time.split(':');
@@ -4061,8 +4140,9 @@ function dismissInstallGuide(){
   }
 
   function requestDeleteEvent() {
-    var idx = currentDetailEventId;
-    if (idx === null || idx === undefined || !events[idx]) return;
+    // v3.4.1：currentDetailEventId 现在存的是事件 id（非数组下标），变量名同步更正
+    var evId = currentDetailEventId;
+    if (!findEventById(evId)) return;
     // 自定义确认弹窗（避免 PWA 环境 confirm() 不弹出）
     var overlay = document.createElement('div');
     overlay.id = 'deleteConfirmOverlay';
@@ -4089,11 +4169,10 @@ function dismissInstallGuide(){
   }
 
   function deleteEvent() {
-    const idx = currentDetailEventId;
-    if (idx === null || idx === undefined) return;
-    const event = events[idx];
+    const event = findEventById(currentDetailEventId);
     if (!event) return;
-    events.splice(idx, 1);
+    const idx = events.indexOf(event);
+    if (idx >= 0) events.splice(idx, 1);
     window.CloudSync?.deleteEvent?.(event.id || idx);
     saveEvents();
     closeEventDetail();
@@ -4281,7 +4360,8 @@ function dismissInstallGuide(){
   // ============ 日志页渲染 ============
   function renderLogDay() {
     // 简易统计
-    const todayEvents = events.filter(e => new Date(e.ts).toDateString() === new Date().toDateString());
+    // v3.4.1：null 防御 + 本地时区归日（该函数挂在 addEvent 刷新链上，脏数据会中断整条刷新）
+    const todayEvents = events.filter(e => isValidEvent(e) && isSameLocalDay(e.ts, new Date()));
     const feedCount = todayEvents.filter(e => e.type === 'feed').length;
     const cryEvents = todayEvents.filter(e => e.type === 'cry');
     // 保持日志页示例数据不变（实际应用中会同步）
@@ -4709,6 +4789,20 @@ function dismissInstallGuide(){
     setTimeout(() => toast.classList.remove('active'), 2000);
   }
 
+  /** v3.4.0 需求⑧：刷新按钮——同步云端 + 检查版本更新 + 刷新页面 */
+  window.refreshPage = function() {
+    showToast('🔄 正在同步…');
+    try { window.CloudSync?.syncNow?.(); } catch (e) {}
+    // 检查版本更新（Service Worker 拉取最新资源）
+    try {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistration().then(function(reg){ if (reg) reg.update(); }).catch(function(){});
+      }
+    } catch (e) {}
+    // 稍候刷新以呈现最新数据
+    setTimeout(function(){ location.reload(true); }, 700);
+  };
+
   function openQuickRecord() {
     Object.keys(toggles).forEach(k => updateToggleUI(k));
     document.getElementById('quickRecordOverlay').classList.add('active');
@@ -4799,24 +4893,9 @@ function dismissInstallGuide(){
     try {
       await window.CloudSync?.login?.(id, pw);
       if (window.CloudSync?.isSignedIn?.()) {
-        // 成功：交给流程编排器
+        // 成功：统一收尾（落库 + 进入主流程 + 同步）
         setLoginBusy(false);
-        var loginId = (document.getElementById('loginFamilyId')?.value || '').trim();
-        var loginPw = document.getElementById('loginPassword')?.value || '';
-        if (loginId) {
-          saveAccount(loginId, loginPw, localStorage.getItem('displayName') || '');
-          localStorage.setItem('babysleep_last_id', loginId);
-          if (!document.getElementById('loginRememberPw')?.checked) {
-            // 未勾选记住密码——仅保存 ID，不保留密码
-            saveAccount(loginId, '', localStorage.getItem('displayName') || '');
-          }
-        }
-        window.postLoginFlow?.();
-        // v3.3.0 登录成功后，将本地存储的数据上传到服务器进行同步
-        if (window.CloudSync?.isConfigured?.() && window.CloudSync?.isSignedIn?.()) {
-          showToast('🔄 正在同步本地数据到云端…');
-          window.CloudSync.syncNow();
-        }
+        finishCloudLogin(id, pw);
       } else {
         // 失败：保留输入，仅提示（网络类错误尝试本地降级）
         handleCloudLoginFailure(id, pw);
@@ -4830,6 +4909,23 @@ function dismissInstallGuide(){
     }
   }
   window.loginSubmit = loginSubmit;
+
+  /** 云端登录成功后的统一收尾：落库账号 + 进入主流程 + 触发同步（需求①复用） */
+  function finishCloudLogin(id, pw) {
+    var loginId = (id || '').trim();
+    var loginPw = (document.getElementById('loginPassword')?.value || pw || '');
+    if (loginId) {
+      // 尊重「记住密码」勾选：未勾选则只保存 ID，不保留密码
+      saveAccount(loginId, document.getElementById('loginRememberPw')?.checked ? loginPw : '', localStorage.getItem('displayName') || '');
+      localStorage.setItem('babysleep_last_id', loginId);
+    }
+    window.postLoginFlow?.();
+    if (window.CloudSync?.isConfigured?.() && window.CloudSync?.isSignedIn?.()) {
+      showToast('🔄 正在同步本地数据到云端…');
+      window.CloudSync.syncNow();
+    }
+  }
+  window.finishCloudLogin = finishCloudLogin;
 
   // ==================== v3.2.1 多账号本地管理 ====================
 
@@ -5009,12 +5105,22 @@ function dismissInstallGuide(){
 
     loginMode = detectAccountMode(id);
     if (loginMode === 'register') {
-      if (hintEl) {
-        hintEl.textContent = '该账号未注册，将创建为新账号';
-        hintEl.style.display = 'block';
-        hintEl.classList.add('is-register');
+      if (window.CloudSync?.isConfigured?.()) {
+        // v3.4.0 需求①：云端模式不预设"将创建新账号"，统一走登录分支，登录失败再引导注册
+        if (hintEl) {
+          hintEl.textContent = '输入密码以登录（已注册账号将直接登录）';
+          hintEl.style.display = 'block';
+          hintEl.classList.remove('is-register');
+        }
+        if (btnEl) btnEl.textContent = '登录';
+      } else {
+        if (hintEl) {
+          hintEl.textContent = '该账号未注册，将创建为新账号';
+          hintEl.style.display = 'block';
+          hintEl.classList.add('is-register');
+        }
+        if (btnEl) btnEl.textContent = '注册并登录';
       }
-      if (btnEl) btnEl.textContent = '注册并登录';
     } else {
       if (hintEl) {
         hintEl.textContent = '欢迎回来，请输入密码登录';
@@ -5158,17 +5264,32 @@ function dismissInstallGuide(){
       setLoginError('请输入账号ID和密码');
       return;
     }
-    if (refreshLoginMode() === 'register') {
+    // 本地模式（未配置云端）：沿用既有本地注册/登录判定
+    if (!window.CloudSync?.isConfigured?.()) {
+      if (refreshLoginMode() === 'register') { openRegisterConfirm(); return; }
+      setLoginBusy(true);
+      localLoginSubmit(id, pw);
+      setLoginBusy(false);
+      return;
+    }
+    // v3.4.0 需求①：云端模式优先尝试登录——已存在账号直接登录，绝不弹"创建新账号"
+    setLoginBusy(true);
+    try { await window.CloudSync?.login?.(id, pw); } catch (e) { /* login 内部已吞异常并 notify */ }
+    if (window.CloudSync?.isSignedIn?.()) {
+      finishCloudLogin(id, pw);
+      setLoginBusy(false);
+      return;
+    }
+    // 登录失败：仅当明确"账号不存在/未注册"时才引导注册；其余（密码错/网络）保留输入并提示
+    var errText = window.__lastCloudNotify || '';
+    var isNotFound = /不存在|未注册|not found|not registered|no (such|account)|查无|无此|账号不存在|该ID|no account/i.test(errText);
+    if (isNotFound) {
+      setLoginBusy(false);
       openRegisterConfirm();
       return;
     }
-    if (window.CloudSync?.isConfigured?.()) {
-      await loginSubmit();
-      return;
-    }
-    setLoginBusy(true);
-    localLoginSubmit(id, pw);
     setLoginBusy(false);
+    setLoginError(classifyLoginError(errText) || '账号或密码不正确，请重试');
   }
   window.handleLoginPrimary = handleLoginPrimary;
 
@@ -5201,7 +5322,21 @@ function dismissInstallGuide(){
     if (!window.CloudSync?.isConfigured?.()) {
       showToast('未配置云端，无法登录家庭共享'); return;
     }
+    // v3.4.0 需求⑥：已登录（含刷新后自动恢复会话）直接查看详情，无需二次输入密码
     if (!window.CloudSync?.isSignedIn?.()) {
+      if (localStorage.getItem('babysleep_token')) {
+        // 会话可能尚在异步恢复（restoreSession），稍候再判定，避免误弹登录框
+        setTimeout(function() {
+          if (window.CloudSync?.isSignedIn?.()) {
+            renderFamilyShare();
+            var ov = document.getElementById('familyShareOverlay'); if (ov) ov.classList.add('active');
+            var md = document.getElementById('familyShareModal'); if (md) md.classList.add('active');
+          } else {
+            openFamilyLogin();
+          }
+        }, 300);
+        return;
+      }
       openFamilyLogin();   // 本地模式：先弹登录小卡片
       return;
     }
@@ -5554,9 +5689,10 @@ function dismissInstallGuide(){
 
   // Comfort 单击计数（安抚）— 注意：已由上方通用 .quick-action[data-toggle] 统一处理，此处不再重复绑定
   function updateCounters() {
-    const today = new Date().toDateString();
-    const feeds = events.filter(e => new Date(e.ts).toDateString() === today && e.type === 'feed_start').length;
-    const soothes = events.filter(e => new Date(e.ts).toDateString() === today && (e.type === 'comfort_record' || e.type === 'soothe')).length;
+    // v3.4.1：null 防御 + 本地时区归日（该函数挂在 addEvent 刷新链上，脏数据会中断整条刷新）
+    const today = new Date();
+    const feeds = events.filter(e => isValidEvent(e) && isSameLocalDay(e.ts, today) && e.type === 'feed_start').length;
+    const soothes = events.filter(e => isValidEvent(e) && isSameLocalDay(e.ts, today) && (e.type === 'comfort_record' || e.type === 'soothe')).length;
     const fc = document.getElementById('feedCounter'); if (fc) fc.textContent = '今日 ' + feeds + ' 次';
     const sc = document.getElementById('comfortStatus');
     if (sc) { sc.style.display = 'block'; sc.textContent = '今日 ' + soothes + ' 次'; }
@@ -5759,7 +5895,7 @@ function dismissInstallGuide(){
   })();
 
   window.BabySleepApp = {
-    getEvents: () => events.map(event => ({...event})),
+    getEvents: () => events.filter(isValidEvent).map(event => ({...event})),
     replaceEvents: remoteEvents => {
       events = (Array.isArray(remoteEvents) ? remoteEvents : []).map(normalizeEvent).filter(Boolean).sort((a,b)=>a.ts-b.ts);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(events));
@@ -5854,24 +5990,30 @@ function dismissInstallGuide(){
   refreshLoginMode();   // v3.2.2 首屏即给出登录/注册语境提示
   loginGate();
 
-  // 时间轴事件委托（touch + click 双层兜底）
+  // v3.4.1 Bug A：时间轴事件委托 —— 仅使用 click，移除 touchstart 直接打开弹窗的绑定。
+  // 触屏浏览器在轻触元素后会自然派发 click（约 300ms 内），因此：
+  //   1) 只监听 click，单次轻触 = 单次打开，杜绝 touchstart+click 双触发；
+  //   2) 不再在 touchstart 阶段打开，避免用户滚动时间轴 / 滑动落点压在某条事件上时被误触发；
+  //   3) 用 data-event-id 作为稳定凭据，配合 openEventDetail 内去重守卫，确保一次点击只打开一次。
   (function initTimelineDelegation() {
     var tl = document.getElementById('timelineEvents');
     if (!tl) return;
     tl.addEventListener('click', function(e) {
       var item = e.target.closest('.timeline-event');
-      if (item && item.dataset.eventIndex !== undefined) {
+      if (item && item.dataset.eventId !== undefined) {
         e.stopPropagation();
-        window.openEventDetail(parseInt(item.dataset.eventIndex));
+        window.openEventDetail(item.dataset.eventId);
       }
     });
-    tl.addEventListener('touchstart', function(e) {
+    // 键盘可达性：聚焦后回车/空格也能打开详情
+    tl.addEventListener('keydown', function(e) {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
       var item = e.target.closest('.timeline-event');
-      if (item && item.dataset.eventIndex !== undefined) {
-        e.stopPropagation();
-        window.openEventDetail(parseInt(item.dataset.eventIndex));
+      if (item && item.dataset.eventId !== undefined) {
+        e.preventDefault();
+        window.openEventDetail(item.dataset.eventId);
       }
-    }, { passive: true });
+    });
   })();
 
   // ========== 浮动按钮拖拽 + 吸附边缘 ==========
@@ -5917,15 +6059,11 @@ function dismissInstallGuide(){
     } catch(e) {}
   })();
 
-  // 回到顶部按钮：滚动超过一屏才显示
+  // v3.4.0 需求⑧：侧边浮动按钮常驻显示（不分页面、不随滚动隐藏）
+  // 回到顶部按钮的"滚动到顶"行为由按钮自身 onclick 处理，此处不再隐藏整个侧边栏
   (function initBackToTop() {
-    const wrap = document.querySelector('.side-float');
     const tl = document.getElementById('pageTimeline');
-    if (!wrap || !tl) return;
-    tl.addEventListener('scroll', () => {
-      wrap.classList.toggle('hidden', tl.scrollTop < window.innerHeight * 0.6);
-    }, { passive: true });
-    setTimeout(() => wrap.classList.toggle('hidden', tl.scrollTop < window.innerHeight * 0.6), 600);
+    if (!tl) return;
   })();
 
   // Safari/PWA：启用离线缓存，并在每次启动时检查新版本。

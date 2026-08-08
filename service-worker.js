@@ -1,5 +1,5 @@
 // BabySleep Service Worker - 离线支持 + 缓存策略
-const CACHE_NAME = 'babysleep-v3.2.0';
+const CACHE_NAME = 'babysleep-v3.4.1';
 const APP_SHELL = new URL('./index.html', self.registration.scope).toString();
 const ASSETS = [
   './',
