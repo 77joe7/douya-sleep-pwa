@@ -18,6 +18,11 @@
   const LS_DISPLAY = 'babysleep_display_name';
   const LS_IDENTITY = 'babysleep_identity_local';
   const LS_HINTED = 'babysleep_role_hinted';
+  const LS_FINGERPRINTS = 'babysleep_synced_fp';   // v3.4.2：已成功上云的事件指纹缓存
+
+  // v3.4.2 性能修复：单批并发推送的请求数。
+  // 兼顾吞吐与移动端浏览器的同域并发连接数上限（Safari 约 6）。
+  const PUSH_BATCH_SIZE = 6;
 
   // 状态
   let app = null;
@@ -27,6 +32,7 @@
   let pollTimer = null;
   let syncTimer = null;
   let syncing = false;
+  let polling = false;       // v3.4.2：runPoll 自己的重入锁（旧代码只读 syncing 却从不置位，导致轮询可重入）
 
   // utils
   function uuid() {
@@ -228,18 +234,134 @@
     return base;
   }
 
+  // ============ v3.4.2 性能修复：增量推送（dirty tracking）============
+  // 背景：syncNow / runPoll 原本每轮都把「全部本地事件」逐条串行 upsert。
+  // v3.4.2 的合并式 replaceEvents 取消了旧「整表覆盖 + 30 天窗口」对本地列表的隐式裁剪，
+  // 本地事件量转为单调增长（约 15 条/天，数月后上千条），
+  // 全量串行推送无法在 3s 轮询间隔内跑完 → 请求堆叠、移动端耗电、Supabase 配额浪费。
+  // 对策：为每条事件记录「上次成功上云时的参数指纹」，只推送指纹变化的事件，并分批并发。
+
+  /**
+   * 稳定序列化：递归按 key 排序，保证内容相同即指纹相同，不受属性插入顺序影响。
+   * 本地新建的事件与云端回灌的事件属性顺序不同，若直接 JSON.stringify 会误判为「已变更」。
+   * @param {*} value 任意可序列化值
+   * @returns {string} 规范化字符串
+   */
+  function stableStringify(value) {
+    if (value === null || typeof value !== 'object') return JSON.stringify(value);
+    if (Array.isArray(value)) return '[' + value.map(stableStringify).join(',') + ']';
+    return '{' + Object.keys(value).sort().map(function (k) {
+      return JSON.stringify(k) + ':' + stableStringify(value[k]);
+    }).join(',') + '}';
+  }
+
+  /** 从 localStorage 读取指纹缓存；损坏或缺失时返回空对象（退化为全量推送，不影响正确性）。 */
+  function loadFingerprints() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(LS_FINGERPRINTS));
+      return (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : {};
+    } catch (e) { return {}; }
+  }
+  function persistFingerprints() {
+    try { localStorage.setItem(LS_FINGERPRINTS, JSON.stringify(syncedFingerprints)); }
+    catch (e) { /* 配额不足：指纹丢失只会退化为全量推送一次，不影响数据正确性 */ }
+  }
+  /** 切换账号 / 退出登录时必须清空，否则会误判他人数据为「已同步」而漏推。 */
+  function resetFingerprints() {
+    syncedFingerprints = {};
+    try { localStorage.removeItem(LS_FINGERPRINTS); } catch (e) {}
+  }
+
+  let syncedFingerprints = loadFingerprints();   // { [eventId]: fingerprint }
+
+  /**
+   * 构造 upsert_event 的 RPC 参数。抽出成独立函数，
+   * 保证「计算指纹所用的值」与「实际上传的值」永远是同一份，不会脱节。
+   * @param {Object} ev 本地事件对象
+   * @returns {Object} RPC 参数对象
+   */
+  function buildUpsertParams(ev) {
+    return {
+      p_id: ev.id, p_baby_id: babyId, p_type: ev.type, p_ts: ev.ts,
+      p_status: ev.status || 'complete', p_activity_key: ev.activityKey || null,
+      p_session_id: ev.sessionId || null, p_payload: toCloudPayload(ev),
+      p_recorder_name: ev.recorderName || localStorage.getItem(LS_DISPLAY) || '家庭成员',
+      p_recorder_role: ev.recorderRole || (localStorage.getItem(LS_IDENTITY) || 'editor')
+    };
+  }
+
+  /**
+   * 计算事件指纹。
+   *
+   * 只取「事件自身携带的字段」，**刻意不含** buildUpsertParams 里那两个
+   * localStorage 兜底值（LS_DISPLAY / LS_IDENTITY）。原因：
+   *   - 这两个兜底是易变量。restoreSession 会在首次恢复会话时补写 LS_DISPLAY，
+   *     用户改昵称也会改它；若纳入指纹，一次昵称变化就会让**全部历史事件**同时变 dirty，
+   *     触发正是本次要消除的「全量推送风暴」。
+   *   - 语义上也不应发生：历史记录的记录人不该被后来改名的人追溯改写。
+   * 事件自身带 recorderName/recorderRole 时（addEvent 均会写入），它们仍在指纹内，
+   * 因此真实的记录人变化依然能被正确识别为 dirty。
+   *
+   * @param {Object} ev 本地事件对象
+   * @returns {string} 稳定指纹
+   */
+  function fingerprintOf(ev) {
+    return stableStringify({
+      babyId: babyId,
+      id: ev.id,
+      type: ev.type,
+      ts: ev.ts,
+      status: ev.status || 'complete',
+      activityKey: ev.activityKey || null,
+      sessionId: ev.sessionId || null,
+      payload: toCloudPayload(ev),
+      recorderName: ev.recorderName || '',
+      recorderRole: ev.recorderRole || ''
+    });
+  }
+
   async function pushEventToCloud(ev) {
     if (!session || !babyId) return false;
     try {
-      await rpc('upsert_event', {
-        p_id: ev.id, p_baby_id: babyId, p_type: ev.type, p_ts: ev.ts,
-        p_status: ev.status || 'complete', p_activity_key: ev.activityKey || null,
-        p_session_id: ev.sessionId || null, p_payload: toCloudPayload(ev),
-        p_recorder_name: ev.recorderName || localStorage.getItem(LS_DISPLAY) || '家庭成员',
-        p_recorder_role: ev.recorderRole || (localStorage.getItem(LS_IDENTITY) || 'editor')
-      }, true);
+      await rpc('upsert_event', buildUpsertParams(ev), true);
+      // 仅在确认成功后才记指纹：失败的事件保持 dirty，下一轮会自动重试。
+      syncedFingerprints[String(ev.id)] = fingerprintOf(ev);
       return true;
     } catch (e) { console.warn('[upsert_event] failed', e); return false; }
+  }
+
+  /**
+   * 只推送内容发生变化的事件，分批并发执行；并顺带清理已删除事件的指纹。
+   * @param {Array} list 本地全量事件
+   * @returns {Promise<number>} 成功推送的条数
+   */
+  async function pushDirtyEvents(list) {
+    if (!session || !babyId) return 0;
+    const all = Array.isArray(list) ? list : [];
+    const pending = [];
+    const liveIds = Object.create(null);
+
+    for (const ev of all) {
+      if (!ev || ev.id === undefined || ev.id === null) continue;
+      const id = String(ev.id);
+      liveIds[id] = true;
+      if (syncedFingerprints[id] !== fingerprintOf(ev)) pending.push(ev);
+    }
+
+    // 本地已删除的事件，其指纹不再有意义；不清理会让缓存随时间无限增长。
+    let pruned = false;
+    for (const id of Object.keys(syncedFingerprints)) {
+      if (!liveIds[id]) { delete syncedFingerprints[id]; pruned = true; }
+    }
+
+    let ok = 0;
+    for (let i = 0; i < pending.length; i += PUSH_BATCH_SIZE) {
+      const batch = pending.slice(i, i + PUSH_BATCH_SIZE);
+      const results = await Promise.all(batch.map(ev => pushEventToCloud(ev)));
+      ok += results.filter(Boolean).length;
+    }
+    if (ok || pruned) persistFingerprints();
+    return ok;
   }
 
   async function deleteEventRemote(id) {
@@ -319,10 +441,8 @@
     syncing = true;
     setStatus('同步中', 'syncing');
     try {
-      const list = app?.getEvents?.() || [];
-      for (const ev of list) {
-        await pushEventToCloud(ev);
-      }
+      // v3.4.2：全量串行推送 → 增量分批并发推送
+      await pushDirtyEvents(app?.getEvents?.() || []);
       await refreshActivityState();
       // 拉取云端事件替换本地（云端为准）
       const now = Date.now();
@@ -350,15 +470,21 @@
   }
   function stopPolling() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
   async function runPoll() {
-    if (!session || !babyId || syncing) return;
-    await refreshActivityState();
-    const list = app?.getEvents?.() || [];
-    if (list.length) for (const ev of list) await pushEventToCloud(ev);
-    const now = Date.now();
-    // v3.4.2 Bug B：轮询窗口由 30 天放宽到 365 天，与 syncNow / restoreSession 保持一致。
-    // 修复前每 3 秒的轮询只拉最近 30 天，回灌时会把更早的记录挤出本地缓存（记录「被吞」）。
-    const remote = await loadEventsFromCloud(now - 365 * 86400 * 1000, now + 86400 * 1000);
-    if (remote && app?.replaceEvents) app.replaceEvents(remote);
+    // v3.4.2：新增 polling 重入锁 + 离线短路。
+    // 旧代码只读 syncing 却从不置位，单轮耗时超过 3s 间隔时 setInterval 会不断叠加并发轮次。
+    if (!session || !babyId || syncing || polling || !navigator.onLine) return;
+    polling = true;
+    try {
+      await refreshActivityState();
+      await pushDirtyEvents(app?.getEvents?.() || []);
+      const now = Date.now();
+      // v3.4.2 Bug B：轮询窗口由 30 天放宽到 365 天，与 syncNow / restoreSession 保持一致。
+      // 修复前每 3 秒的轮询只拉最近 30 天，回灌时会把更早的记录挤出本地缓存（记录「被吞」）。
+      const remote = await loadEventsFromCloud(now - 365 * 86400 * 1000, now + 86400 * 1000);
+      if (remote && app?.replaceEvents) app.replaceEvents(remote);
+    } catch (e) {
+      console.warn('[poll] failed', e);
+    } finally { polling = false; }
   }
 
   // 页面不可见时暂停轮询；恢复时立即同步
@@ -378,6 +504,8 @@
     try {
       const r = await rpc('auth_login', { p_baby_id: babyIdInput, p_password: password, p_device_id: getDeviceId() });
       const row = Array.isArray(r) ? r[0] : r;
+      // v3.4.2：切换账号后旧指纹全部失效，必须清空，否则新账号的事件会被误判为「已同步」而漏推。
+      resetFingerprints();
       session = { token: row.token, household_id: row.household_id, family_name: row.family_name, baby_name: row.baby_name, baby_id: row.baby_id, display_name: row.display_name || '家庭成员', identity_local: 'editor' };
       localStorage.setItem(LS_TOKEN, session.token);
       // 通过 auth_get_session 获取宝宝 uuid（不走直接 REST，避免 revoke 权限阻断）
@@ -398,6 +526,8 @@
     try {
       const r = await rpc('auth_create_household', { p_baby_id: babyIdInput, p_password: password, p_family_name: familyName, p_baby_name: babyName, p_device_id: getDeviceId() });
       const row = Array.isArray(r) ? r[0] : r;
+      // v3.4.2：新建家庭 = 新的 baby_id，旧指纹全部失效。
+      resetFingerprints();
       session = { token: row.token, household_id: row.household_id, family_name: row.family_name, baby_name: row.baby_name, baby_id: row.baby_id, display_name: '家庭成员', identity_local: 'editor' };
       localStorage.setItem(LS_TOKEN, session.token);
       await resolveBabyId();
@@ -438,6 +568,12 @@
       if (!localStorage.getItem(LS_IDENTITY)) localStorage.setItem(LS_IDENTITY, session.identity_local);
       await resolveBabyId();
       refreshAccountUI();
+      // v3.4.2：拉取前先补一次推送。
+      // restoreSession 原本是唯一「只 pull 不 push」的入口（syncNow / runPoll 都是先 push 后 pull）。
+      // 边界场景：用户离线时清空备注 → 杀进程 → 重启，启动拉取会让云端旧备注复活一次，
+      // 随后又被轮询推回云端固化。先 push 再 pull 即可闭合该窗口。
+      // 注：这些本地事件在 3 秒后的首轮 runPoll 中本来也会被推送，故最终状态一致，只是时序更确定。
+      await pushDirtyEvents(app?.getEvents?.() || []);
       // 云端为主：启动时立即拉取云端事件替换本地缓存
       const now = Date.now();
       const remote = await loadEventsFromCloud(now - 365 * 86400 * 1000, now + 86400 * 1000);
@@ -456,6 +592,8 @@
     try { await rpc('auth_logout', {}, true); } catch (e) {}
     session = null; babyId = null; activityState = {};
     localStorage.removeItem(LS_TOKEN);
+    // v3.4.2：退出登录后清空指纹，避免下次换账号登录时漏推。
+    resetFingerprints();
     stopPolling();
     refreshAccountUI();
     notify('已退出登录');
