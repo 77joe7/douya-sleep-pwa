@@ -2239,8 +2239,8 @@ function dismissInstallGuide(){
               <label class="filter-row"><input type="checkbox" data-fv="all" checked onchange="onFilter(this)"><b>全选</b></label>
               <label class="filter-row"><input type="checkbox" data-fv="sleep" checked onchange="onFilter(this)">😴 睡眠</label>
               <label class="filter-row"><input type="checkbox" data-fv="feed" checked onchange="onFilter(this)">🍼 喂奶</label>
-              <label class="filter-row"><input type="checkbox" data-fv="routine" checked onchange="onFilter(this)">📋 日常</label>
-              <label class="filter-row"><input type="checkbox" data-fv="cry" checked onchange="onFilter(this)">🥺 哭闹</label>
+              <label class="filter-row"><input type="checkbox" data-fv="routine" checked onchange="onFilter(this)">📖 日常</label>
+              <label class="filter-row"><input type="checkbox" data-fv="cry" checked onchange="onFilter(this)">😢 哭闹</label>
               <label class="filter-row"><input type="checkbox" data-fv="other" checked onchange="onFilter(this)">📝 其他</label>
             </div>
           </div>
@@ -4184,6 +4184,18 @@ function dismissInstallGuide(){
     return 'other';
   }
 
+  // v3.5.1: 时间轴图标按活动精细映射，与底部快速记录按钮的 emoji 一一对应
+  function iconForEvent(ev) {
+    const t = String(ev?.type || '');
+    if (t.startsWith('putdown_')) return '🛏️';
+    if (t.startsWith('comfort') || t.startsWith('soothe') || t === 'soothe') return '🤗';
+    if (t.startsWith('ritual_')) return '📖';
+    if (t.startsWith('feed')) return '🍼';
+    if (t.startsWith('nap') || t.startsWith('sleep')) return '😴';
+    if (t.startsWith('cry')) return '😢';
+    return '📝';
+  }
+
   window.toggleFilter = function(e) {
     e.stopPropagation();
     document.getElementById('filterMenu').classList.toggle('open');
@@ -4237,6 +4249,8 @@ function dismissInstallGuide(){
       // 即使后续增删导致下标漂移，也能可靠打开正确事件。
       var evId = String(ev.id);
       var s = catStyle[cat] || catStyle.other;
+      /* v3.5.1: 图标按活动精细映射，与快速记录按钮一致；颜色/背景保留 category 配色 */
+      s = Object.assign({}, s, { icon: iconForEvent(ev) });
       var rec = ev.recorderName || ev.recorder_name;
       var role = ev.recorderRole || ev.recorder_role;
       var dur = computeDurationForEvent(ev);
