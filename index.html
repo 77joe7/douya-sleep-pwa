@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>小豆芽 · 宝宝睡眠 v3.4.2</title>
+<title>小豆芽 · 宝宝睡眠 v3.5.0</title>
 
 <!-- PWA -->
 <link rel="manifest" href="manifest.json">
@@ -534,6 +534,12 @@
   .date-item .dot-indicator { width: 4px; height: 4px; border-radius: 50%; background: var(--primary); margin-top: 1px; }
   .date-item.active .dot-indicator { background: white; }
   .date-item.out-range { opacity: 0.25; }
+  /* v3.5.0 需求②：训练前缓冲期（准备期）—— 浅色虚线，与正式训练日（实色）/ 范围外（灰）三级区分 */
+  .date-item.is-buffer {
+    opacity: 0.5;
+    border: 1.5px dashed rgba(26,26,26,0.28);
+    background: repeating-linear-gradient(135deg, var(--card), var(--card) 6px, rgba(26,26,26,0.03) 6px, rgba(26,26,26,0.03) 12px);
+  }
 
   .date-month-divider {
     flex: 0 0 auto;
@@ -1343,6 +1349,7 @@
   body.dark-mode .timeline-dot { border-color: var(--card); }
   body.dark-mode .date-item { background: var(--card); color: var(--text-primary); }
   body.dark-mode .date-item.active { background: var(--bg); color: white; }
+  body.dark-mode .date-item.is-buffer { border-color: rgba(255,255,255,0.28); background: var(--card); }
   body.dark-mode .old-event-row { display:none; background: var(--card); }
   body.dark-mode .event-title { color: var(--text-primary); }
   body.dark-mode .event-time { color: var(--text-secondary); }
@@ -2046,8 +2053,8 @@
   <button onclick="dismissInstallGuide()">我知道了</button>
 </div>
 
-<script src="./config.js?v=3.4.2"></script>
-<script src="./app-sync.js?v=3.4.2"></script>
+<script src="./config.js?v=3.5.0"></script>
+<script src="./app-sync.js?v=3.5.0"></script>
 <script>
 (function(){
   var ua=navigator.userAgent;
@@ -2416,8 +2423,17 @@ function dismissInstallGuide(){
           <input type="date" id="trainStartDate" value="2026-08-03">
         </div>
         <div class="train-method-row">
-          <label>训练天数</label>
-          <input type="number" id="trainDays" value="14" min="14" max="14" readonly>
+          <label>训练天数（3–60 天）</label>
+          <input type="number" id="trainDays" value="14" min="3" max="60" step="1" inputmode="numeric">
+        </div>
+        <div class="train-method-row">
+          <label>训练前缓冲天数（0–14 天）</label>
+          <input type="number" id="trainBufferDays" value="0" min="0" max="14" step="1" inputmode="numeric">
+          <div style="font-size:10px;color:var(--text-tertiary);margin-top:4px;">缓冲期只做准备，不开始晚上的间隔安抚；缓冲期结束后的第一天即「训练开始日期」，也就是正式训练 Day 1</div>
+        </div>
+        <div class="train-method-row">
+          <label>📋 训练计划概览</label>
+          <div style="font-size:12px;color:var(--text-secondary);font-weight:500;line-height:1.6;" id="trainPlanSummary">--</div>
         </div>
         <div class="train-method-row">
           <label>⚙️ 训练日参数（非实时计时器）</label>
@@ -2532,7 +2548,7 @@ function dismissInstallGuide(){
             <div class="settings-icon" style="background:rgba(26,26,26,0.1);color:var(--text-primary)">ℹ️</div>
             <div>
               <div class="settings-label">关于</div>
-              <div class="settings-value">v3.2.0 · 家庭协作版</div>
+              <div class="settings-value">v3.5.0 · 家庭协作版</div>
             </div>
           </div>
           <span class="chevron">›</span>
@@ -2859,6 +2875,9 @@ function dismissInstallGuide(){
         <div class="log-row"><span class="log-field-label">性别</span><span class="log-field-value"><select id="babyGenderEdit" style="width:100%;padding:8px;border-radius:8px;border:1px solid rgba(26,26,26,0.1);font-size:14px;"><option value="">不填</option><option value="男">男宝</option><option value="女">女宝</option></select></span></div>
         <div class="log-row"><span class="log-field-label">出生日期</span><span class="log-field-value"><input type="date" id="babyBirthEdit" class="log-field-entry" style="font-size:14px;"></span></div>
         <div class="log-row"><span class="log-field-label">训练开始</span><span class="log-field-value"><input type="date" id="trainStartEdit" class="log-field-entry" style="font-size:14px;"></span></div>
+        <!-- v3.5.0 需求②：训练天数与缓冲天数，与设置页训练模块同源双向一致 -->
+        <div class="log-row"><span class="log-field-label">训练天数</span><span class="log-field-value"><input type="number" id="trainDaysEdit" class="log-field-entry" style="font-size:14px;" min="3" max="60" step="1" inputmode="numeric"></span></div>
+        <div class="log-row"><span class="log-field-label">缓冲天数</span><span class="log-field-value"><input type="number" id="trainBufferEdit" class="log-field-entry" style="font-size:14px;" min="0" max="14" step="1" inputmode="numeric"></span></div>
       </div>
       <button class="btn-confirm" onclick="saveBabyProfile()">保存</button>
     </div>
@@ -3601,6 +3620,123 @@ function dismissInstallGuide(){
     return { start, end: start + 86400000 };
   }
 
+  // ============ v3.5.0 需求②：训练计划唯一取数口 ============
+  // 语义（system_design_v350.md §8.1，唯一权威定义）：
+  //   bufferStart = trainStartDate − bufferDays 天
+  //   缓冲期（准备期）= [bufferStart, trainStartDate − 1]，共 bufferDays 天，不参与 ci[] 安抚间隔表
+  //   正式训练期     = [trainStartDate, trainStartDate + trainDays − 1]，trainStartDate 当天 = Day 1
+  //   bufferDays = 0 时缓冲期为空集，全部行为与 v3.4.2 完全一致（向后兼容基线）
+  //
+  // ⚠️ 铁律：除本函数内部外，任何地方都禁止直接读
+  //    localStorage.getItem('trainStartDate' / 'trainDays' / 'trainBufferDays')。
+  const TRAIN_DAYS_MIN = 3, TRAIN_DAYS_MAX = 60, TRAIN_DAYS_DEFAULT = 14;
+  const BUFFER_DAYS_MIN = 0, BUFFER_DAYS_MAX = 14, BUFFER_DAYS_DEFAULT = 0;
+
+  /** 取整并钳制到 [min, max]，非数字回落到 fallback */
+  function clampInt(value, min, max, fallback) {
+    const n = parseInt(value, 10);
+    if (!Number.isFinite(n)) return fallback;
+    return Math.min(max, Math.max(min, n));
+  }
+  /** 本地日期加减天数（自动跨月/跨年，且不受夏令时影响） */
+  function addLocalDays(date, offset) {
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate() + offset);
+  }
+  /** 两个日期相差多少「本地自然日」（两端先归零到本地 00:00） */
+  function diffLocalDays(from, to) {
+    const a = new Date(from.getFullYear(), from.getMonth(), from.getDate()).getTime();
+    const b = new Date(to.getFullYear(), to.getMonth(), to.getDate()).getTime();
+    return Math.round((b - a) / 86400000);
+  }
+
+  /**
+   * 读取当前训练计划（纯函数，只读本地缓存，不发网络请求，离线/本地模式安全）。
+   * 云端配置由 CloudSync 的 HouseholdConfigStore 在登录/恢复会话时回填到同一批 localStorage key，
+   * 因此这里读到的始终是「云优先合并后」的结果。
+   * @returns {Object} 训练计划视图对象
+   */
+  function getTrainingPlan() {
+    const startStr = localStorage.getItem('trainStartDate') || '';
+    const hasStartDate = /^\d{4}-\d{2}-\d{2}$/.test(startStr);
+    const today = new Date();
+    const trainStart = hasStartDate
+      ? parseLocalDate(startStr)
+      : new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const trainDays = clampInt(localStorage.getItem('trainDays'), TRAIN_DAYS_MIN, TRAIN_DAYS_MAX, TRAIN_DAYS_DEFAULT);
+    const bufferDays = clampInt(localStorage.getItem('trainBufferDays'), BUFFER_DAYS_MIN, BUFFER_DAYS_MAX, BUFFER_DAYS_DEFAULT);
+    const bufferStart = addLocalDays(trainStart, -bufferDays);
+    const bufferEnd = bufferDays > 0 ? addLocalDays(trainStart, -1) : null;
+    const trainEnd = addLocalDays(trainStart, trainDays - 1);
+
+    /** 'before' 未到准备期 | 'buffer' 准备期 | 'train' 正式训练 | 'after' 已完成 */
+    function phaseOf(date) {
+      const offset = diffLocalDays(trainStart, date);
+      if (offset < -bufferDays) return 'before';
+      if (offset < 0) return 'buffer';
+      if (offset <= trainDays - 1) return 'train';
+      return 'after';
+    }
+    /** 正式训练 Day 编号：trainStart 当天 = 1；准备期为 0 或负数 */
+    function dayIndexOf(date) { return diffLocalDays(trainStart, date) + 1; }
+    /** 展示用文案：'准备 D-2' / '训练 Day 5' / '训练已完成' / '准备期未开始' */
+    function labelOf(date) {
+      const phase = phaseOf(date);
+      if (phase === 'buffer') return '准备 D-' + Math.abs(diffLocalDays(trainStart, date));
+      if (phase === 'train') return '训练 Day ' + dayIndexOf(date);
+      if (phase === 'after') return '训练已完成';
+      return bufferDays > 0 ? '准备期未开始' : '训练未开始';
+    }
+
+    return {
+      hasStartDate,
+      startDateStr: localDateStr(trainStart),
+      trainStart, trainEnd, bufferStart, bufferEnd,
+      trainDays, bufferDays,
+      totalSpan: bufferDays + trainDays,
+      phaseOf, dayIndexOf, labelOf
+    };
+  }
+  window.getTrainingPlan = getTrainingPlan;
+
+  /**
+   * 把配置 patch 推送到云端家庭配置（best-effort）。
+   * 契约：绝不因云端失败打断本地 UI —— CloudSync.saveHouseholdConfig 内部已做静默兜底，
+   * 这里再包一层，兼容「后端 SQL 尚未执行」「CloudSync 未加载」等情形。
+   * @param {Object} patch 顶层子对象粒度，如 { training: {...} } 或 { baby: {...} }
+   */
+  function pushHouseholdConfig(patch) {
+    try {
+      const result = window.CloudSync?.saveHouseholdConfig?.(patch);
+      if (result && typeof result.catch === 'function') {
+        result.catch(function (err) { console.warn('[householdConfig] save failed', err); });
+      }
+    } catch (err) { console.warn('[householdConfig] save failed', err); }
+  }
+
+  /** 用当前生效的训练计划构造完整 training 子对象 patch（禁止手写零散字段） */
+  function buildTrainingPatch() {
+    const plan = getTrainingPlan();
+    return {
+      training: {
+        method: localStorage.getItem('trainMethod') || 'indirect',
+        startDate: plan.startDateStr,
+        days: plan.trainDays,
+        bufferDays: plan.bufferDays
+      }
+    };
+  }
+
+  /** 用当前生效的宝宝档案构造完整 baby 子对象 patch */
+  function buildBabyPatch() {
+    return {
+      baby: {
+        name: localStorage.getItem('babyName') || '豆芽',
+        birth: localStorage.getItem('babyBirth') || '',
+        gender: localStorage.getItem('babyGender') || ''
+      }
+    };
+  }
+
   function eventsOnDate(date) {
     const bounds = dayBounds(date);
     return events.filter(event => isValidEvent(event) && event.ts >= bounds.start && event.ts < bounds.end);
@@ -3673,13 +3809,20 @@ function dismissInstallGuide(){
     const now = new Date(), nowTs = now.getTime(), nowH = now.getHours();
     const heroCardEl = document.getElementById('heroCard');
     if (heroCardEl) heroCardEl.classList.remove('sleeping');
-    const trainStr = localStorage.getItem('trainStartDate') || localDateStr(now);
-    const trainDay = Math.max(1, Math.floor((now - parseLocalDate(trainStr)) / 86400000) + 1);
-    document.getElementById('tlTrainDay').textContent = '训练 Day ' + trainDay;
+    // v3.5.0：训练参数统一走 getTrainingPlan()。bufferDays=0 时下面两行的取值与 v3.4.2 完全等价。
+    const plan = getTrainingPlan();
+    const trainDay = Math.max(1, plan.dayIndexOf(now));
+    // 准备期（含尚未进入准备期）只在 bufferDays>0 时才成立；bufferDays=0 时恒走原分支，零行为变更。
+    const inPrepPhase = plan.bufferDays > 0 && (plan.phaseOf(now) === 'buffer' || plan.phaseOf(now) === 'before');
+    const tlTrainDayEl = document.getElementById('tlTrainDay');
+    if (tlTrainDayEl) tlTrainDayEl.textContent = inPrepPhase ? plan.labelOf(now) : ('训练 Day ' + trainDay);
     const ci = [[3,5,7],[5,7,9],[7,9,12],[9,12,15],[12,15,18],[15,18,20],[18,20,25],[25,30,30]];
     const ct = trainDay <= 8 ? ci[trainDay-1] : ci[7];
     const iv = document.getElementById('trainIntervalDisplay');
-    if (iv) iv.textContent = '第' + trainDay + '天 · 安抚 ' + ct[0] + '/' + ct[1] + '/' + ct[2] + ' 分钟';
+    // 缓冲期不取 ci[] 安抚间隔表：此阶段只做准备，不介入晚上的间隔安抚。
+    if (iv) iv.textContent = inPrepPhase
+      ? '准备期 · 暂不介入'
+      : ('第' + trainDay + '天 · 安抚 ' + ct[0] + '/' + ct[1] + '/' + ct[2] + ' 分钟');
     const elTm = document.getElementById('tlTimeNow'), elDt = document.getElementById('tlDateSm');
     if (elTm) elTm.textContent = now.toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'});
     if (elDt) elDt.textContent = (selectedDate.getMonth()+1)+'月'+selectedDate.getDate()+'日 周'+['日','一','二','三','四','五','六'][selectedDate.getDay()];
@@ -3820,39 +3963,48 @@ function dismissInstallGuide(){
   function renderDateCarousel(prepend) {
     const container = document.getElementById('dateCarousel');
     const today = new Date();
+    // 本地午夜（去掉时分秒）：修正 renderDateCarousel 的日期偏移除算在 00:00 之外每天各偏 1 天（K1 修复）
+    const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     // 滑块起始：训练开始日期（fallback 到30天前）
-    const trainStartStr = localStorage.getItem('trainStartDate') || '';
-    const trainStart = trainStartStr ? parseLocalDate(trainStartStr) : new Date(today.getTime() - 30*86400000);
-    const totalDays = parseInt(localStorage.getItem('trainDays') || '14') || 14;
-    const trainEnd = new Date(trainStart.getTime() + (totalDays - 1) * 86400000);
+    // v3.5.0：训练参数改由 getTrainingPlan() 统一提供；未设置开始日期时保持 v3.4.2 的 30 天前兜底。
+    const plan = getTrainingPlan();
+    const totalDays = plan.trainDays;
+    const trainStart = plan.hasStartDate ? plan.trainStart : new Date(todayMidnight.getTime() - 30*86400000);
+    const trainEnd = plan.hasStartDate ? plan.trainEnd : new Date(trainStart.getTime() + (totalDays - 1) * 86400000);
+    // 缓冲期（准备期）位于训练开始日之前；bufferDays=0 时 bufferStart === trainStart，范围与 v3.4.2 一致。
+    const bufferStart = (plan.hasStartDate && plan.bufferDays > 0) ? plan.bufferStart : trainStart;
 
     // v3.4.0 需求④：可滑动范围 = 训练开始日 -2 天 ～ 训练结束日 +2 天
-    const start = new Date(trainStart.getTime() - 2 * 86400000);
+    // v3.5.0：起点顺延到缓冲期开始日 -2 天，使总跨度展示包含准备期。
+    const start = new Date(bufferStart.getTime() - 2 * 86400000);
     const end = new Date(trainEnd.getTime() + 2 * 86400000);
-    dateRangeStart = Math.floor((start.getTime() - today.getTime()) / 86400000);
-    dateRangeEnd = Math.floor((end.getTime() - today.getTime()) / 86400000);
+    dateRangeStart = Math.round((start.getTime() - todayMidnight.getTime()) / 86400000);
+    dateRangeEnd = Math.round((end.getTime() - todayMidnight.getTime()) / 86400000);
 
     const days = [];
     let prevMonth = -1;
     for (let i = dateRangeStart; i <= dateRangeEnd; i++) {
-      const d = new Date(today); d.setDate(today.getDate() + i);
+      const d = new Date(todayMidnight); d.setDate(todayMidnight.getDate() + i);
       const dd = String(d.getDate()).padStart(2, '0');
       const mm = String(d.getMonth() + 1).padStart(2, '0');
       const ww = ['日','一','二','三','四','五','六'][d.getDay()];
       const isToday = d.toDateString() === today.toDateString();
       const isSelected = d.toDateString() === selectedDate.toDateString();
       const isTrainDay = d.getTime() >= trainStart.getTime() && d.getTime() <= trainEnd.getTime();
+      // v3.5.0：准备期日（bufferStart ~ trainStart-1）。bufferDays=0 时恒为 false。
+      const isBufferDay = plan.bufferDays > 0 && !isTrainDay &&
+        d.getTime() >= bufferStart.getTime() && d.getTime() < trainStart.getTime();
       const hasData = events.some(e => isValidEvent(e) && isSameLocalDay(e.ts, d));
       if (d.getMonth() !== prevMonth) {
         days.push({ kind: 'month', label: (d.getMonth() + 1) + '月' });
         prevMonth = d.getMonth();
       }
-      days.push({ kind: 'day', date: mm + '-' + dd, weekday: ww, hasData, active: isSelected, isToday, ts: d.getTime(), isTrainDay });
+      days.push({ kind: 'day', date: mm + '-' + dd, weekday: ww, hasData, active: isSelected, isToday, ts: d.getTime(), isTrainDay, isBufferDay });
     }
 
     container.innerHTML = days.map(d => {
       if (d.kind === 'month') return '<div class="date-month-divider">' + d.label + '</div>';
-      const cls = d.active ? 'active' : (d.isToday ? 'today' : (d.isTrainDay ? '' : 'out-range'));
+      const cls = d.active ? 'active' : (d.isToday ? 'today' : (d.isTrainDay ? '' : (d.isBufferDay ? 'is-buffer' : 'out-range')));
       return '<div class="date-item ' + cls + '" onclick="selectDate(new Date(' + d.ts + '))"><div class="weekday">' + d.weekday + '</div><div class="day">' + d.date.split('-')[1] + '</div>' + (d.hasData ? '<div class="dot-indicator"></div>' : '') + '</div>';
     }).join('');
 
@@ -4553,8 +4705,29 @@ function dismissInstallGuide(){
   /** onboarding 未完成而身份选择被触发时，挂起待补开 */
   let pendingIdentityPicker = false;
 
-  /** 是否需要走 onboarding：[Q3] 仅依据本地标记 */
+  /**
+   * 是否需要走 onboarding。
+   *
+   * v3.5.0 需求①：本次会话已成功读到云端 meta 且 baby.birth 非空时，直接判定「无需 onboarding」。
+   * 依据：全新设备 / iOS PWA standalone（与 Safari 互不可见的独立 localStorage 容器）下，
+   * 本地 babysleep_onboarding_done 必然缺失，只有云端配置能证明「这是已配置过的存量家庭」。
+   * CloudSync.loadHouseholdConfig() 已在 afterLogin 之前 await 完成并回填本地，
+   * 这里再叠一层云端判定，可覆盖「隐私模式 / 配额不足导致 localStorage 写入静默失败」的场景。
+   *
+   * 云端不可读（RPC 未部署 / 离线 / 未登录 / CloudSync 未加载）时完全回落到本地标记，
+   * 行为与 v3.4.2 逐字节等价，不引入任何回归。
+   *
+   * @returns {boolean} true = 需要展示 onboarding
+   */
   function isOnboardingNeeded() {
+    try {
+      const cloud = window.CloudSync;
+      if (cloud &&
+          typeof cloud.isCloudConfigKnown === 'function' && cloud.isCloudConfigKnown() &&
+          typeof cloud.hasCloudConfig === 'function' && cloud.hasCloudConfig()) {
+        return false;
+      }
+    } catch (e) { /* CloudSync 未就绪：静默回落到本地标记 */ }
     return !localStorage.getItem('babysleep_onboarding_done');
   }
   window.isOnboardingNeeded = isOnboardingNeeded;
@@ -4776,11 +4949,16 @@ function dismissInstallGuide(){
     const weekdays = ['日','一','二','三','四','五','六'];
 
     // 关联睡眠计划起止日期（默认 14 天）
-    const trainStartStr = localStorage.getItem('trainStartDate') || '';
-    const totalDays = parseInt(localStorage.getItem('trainDays') || '14') || 14;
-    const planStart = trainStartStr ? parseLocalDate(trainStartStr) : new Date(selectedDate.getTime() - (totalDays - 1) * 86400000);
+    // v3.5.0：改由 getTrainingPlan() 统一取数，trainDays 已放开为 3~60。
+    const trainingPlan = getTrainingPlan();
+    const totalDays = trainingPlan.trainDays;
+    const planStart = trainingPlan.hasStartDate
+      ? trainingPlan.trainStart
+      : new Date(selectedDate.getTime() - (totalDays - 1) * 86400000);
     const planEnd = new Date(planStart.getTime() + (totalDays - 1) * 86400000);
-    const dayCount = Math.max(1, Math.min(totalDays, 14)); // 图表最多显示14天
+    // v3.4.2 此处硬编码为 Math.min(totalDays, 14)，因为 trainDays 被 readonly 锁死在 14。
+    // v3.5.0 放开 3~60 后，上限显式化为 TRAIN_DAYS_MAX：短计划取实际天数、长计划完整展示，两端均不越界。
+    const dayCount = Math.max(1, Math.min(totalDays, TRAIN_DAYS_MAX));
 
     const dailyStats = [];
 
@@ -5703,7 +5881,7 @@ function dismissInstallGuide(){
     document.getElementById('iosInstall').classList.add('show');
   };
   window.showAbout = function() {
-    alert('🌙 BabySleepTracker v3.2.0\n\n宝宝睡眠训练记录与家庭共享应用\n\n未配置云端时数据保存在当前浏览器；配置 Supabase 后可在家庭成员间同步，并保留本地离线缓存。\n\n睡眠建议不能替代儿科医生的医疗意见。');
+    alert('🌙 BabySleepTracker v3.5.0\n\n宝宝睡眠训练记录与家庭共享应用\n\n未配置云端时数据保存在当前浏览器；配置 Supabase 后可在家庭成员间同步，并保留本地离线缓存。\n\n睡眠建议不能替代儿科医生的医疗意见。');
   };
 
   // ============ 数据导出/导入/清除 ============
@@ -5738,7 +5916,9 @@ function dismissInstallGuide(){
     try { localStorage.removeItem('babysleep_events'); } catch(e) {}
 
     // 2. 清空计划数据
-    ['trainStartDate','trainDays','remindPref'].forEach(function(k){ try { localStorage.removeItem(k); } catch(e){} });
+    // v3.5.0：必须一并清 trainBufferDays / trainMethod，否则「清除全部数据」后
+    // 缓冲天数会残留，主页日期区间仍会向前多延伸出一段幽灵准备期。
+    ['trainStartDate','trainDays','trainBufferDays','trainMethod','remindPref'].forEach(function(k){ try { localStorage.removeItem(k); } catch(e){} });
 
     // 3. 清空宝宝档案
     ['babyName','babyBirth','babyGender'].forEach(function(k){ try { localStorage.removeItem(k); } catch(e){} });
@@ -5751,6 +5931,15 @@ function dismissInstallGuide(){
     try { localStorage.removeItem('babysleep_uid'); } catch(e) {}
     try { localStorage.removeItem('babysleep_pw'); } catch(e) {}
     window.CloudSync?.reset?.();
+    // v3.5.0：家庭级配置现在存在云端 households.meta 里。若不置空，下次启动 restoreSession
+    // 会把刚清掉的宝宝档案 / 训练计划整套回灌到 localStorage，「清除全部数据」形同虚设。
+    // best-effort：RPC 未部署 / 离线时 CloudSync 内部已静默兜底，这里再包一层防御，绝不抛错。
+    try {
+      var cfgReset = window.CloudSync?.resetHouseholdConfig?.();
+      if (cfgReset && typeof cfgReset.catch === 'function') {
+        cfgReset.catch(function(err){ console.warn('[clearAllData] 云端家庭配置置空失败（已忽略）', err); });
+      }
+    } catch (err) { console.warn('[clearAllData] 云端家庭配置置空失败（已忽略）', err); }
 
     saveEvents();
     renderTimeline();
@@ -5759,9 +5948,12 @@ function dismissInstallGuide(){
     renderDataLog();
     renderDataAnalytics();
     updateBabyDisplay();
-    // 同步设置页输入框
-    var ts = document.getElementById('trainStartDate'); if (ts) ts.value = localDateStr(new Date());
-    var tse = document.getElementById('trainStartEdit'); if (tse) tse.value = localDateStr(new Date());
+    // 同步设置页与宝宝弹窗的全部训练输入框（统一回落到默认计划：今天 / 14 天 / 无准备期），
+    // 并重算「训练计划概览」摘要。v3.5.0 前这里只手工回填了两个日期框，
+    // 清除后 #trainDays / #trainBufferDays 仍显示旧值，与实际生效计划不一致。
+    refillTrainingInputs();
+    // K2 修复：清数据后日期轮播必须重算，否则残留旧区间（含已清 bufferDays 的幽灵准备期）
+    renderDateCarousel();
     var bn = document.getElementById('babyNameEdit'); if (bn) bn.value = '豆芽';
     var bg = document.getElementById('babyGenderEdit'); if (bg) bg.value = '';
     var bb = document.getElementById('babyBirthEdit'); if (bb) bb.value = '2026-03-24';
@@ -5955,15 +6147,27 @@ function dismissInstallGuide(){
     const d = parseLocalDate(birth);
     const ageM = Math.floor((Date.now() - d) / (86400000 * 30.44));
     const ageD = Math.floor(((Date.now() - d) / 86400000) % 30.44);
-    const trainStart = localStorage.getItem('trainStartDate') || localDateStr(new Date());
-    const trainDay = Math.max(1, Math.floor((Date.now() - parseLocalDate(trainStart)) / 86400000) + 1);
-    document.getElementById('babyProfileMeta').textContent = ageM + '月' + ageD + '天 · ' + birth + ' · 训练第' + trainDay + '天';
+    // v3.5.0：训练日走 getTrainingPlan()；bufferDays=0 时文案与 v3.4.2 完全一致。
+    const plan = getTrainingPlan();
+    const nowDate = new Date();
+    const phase = plan.phaseOf(nowDate);
+    const inPrepPhase = plan.bufferDays > 0 && (phase === 'buffer' || phase === 'before');
+    const trainLabel = inPrepPhase
+      ? (phase === 'buffer' ? '准备期 · 暂不介入' : '准备期未开始')
+      : ('训练第' + Math.max(1, plan.dayIndexOf(nowDate)) + '天');
+    document.getElementById('babyProfileMeta').textContent = ageM + '月' + ageD + '天 · ' + birth + ' · ' + trainLabel;
   }
   window.openBabyEdit = function() {
+    const plan = getTrainingPlan();
     document.getElementById('babyNameEdit').value = localStorage.getItem('babyName') || '豆芽';
     document.getElementById('babyGenderEdit').value = localStorage.getItem('babyGender') || '';
     document.getElementById('babyBirthEdit').value = localStorage.getItem('babyBirth') || '2026-03-24';
-    document.getElementById('trainStartEdit').value = localStorage.getItem('trainStartDate') || localDateStr(new Date());
+    document.getElementById('trainStartEdit').value = plan.startDateStr;
+    // v3.5.0：与设置页训练模块同源回填，保证任一处修改后另一处重新打开时值同步
+    const daysEdit = document.getElementById('trainDaysEdit');
+    if (daysEdit) daysEdit.value = String(plan.trainDays);
+    const bufferEdit = document.getElementById('trainBufferEdit');
+    if (bufferEdit) bufferEdit.value = String(plan.bufferDays);
     document.getElementById('babyEditOverlay').classList.add('active');
     document.getElementById('babyEditSheet').classList.add('active');
   };
@@ -5971,12 +6175,28 @@ function dismissInstallGuide(){
     localStorage.setItem('babyName', document.getElementById('babyNameEdit').value || '豆芽');
     localStorage.setItem('babyGender', document.getElementById('babyGenderEdit').value);
     localStorage.setItem('babyBirth', document.getElementById('babyBirthEdit').value || '2026-03-24');
-    localStorage.setItem('trainStartDate', document.getElementById('trainStartEdit').value);
-    document.getElementById('trainStartDate').value = document.getElementById('trainStartEdit').value;
+    const startValue = document.getElementById('trainStartEdit').value;
+    if (startValue) localStorage.setItem('trainStartDate', startValue);
+    // v3.5.0：训练天数 / 缓冲天数一并保存，越界值静默钳制到合法区间
+    const daysEdit = document.getElementById('trainDaysEdit');
+    const bufferEdit = document.getElementById('trainBufferEdit');
+    if (daysEdit) {
+      const days = clampInt(daysEdit.value, TRAIN_DAYS_MIN, TRAIN_DAYS_MAX, TRAIN_DAYS_DEFAULT);
+      daysEdit.value = String(days);
+      localStorage.setItem('trainDays', String(days));
+    }
+    if (bufferEdit) {
+      const buffer = clampInt(bufferEdit.value, BUFFER_DAYS_MIN, BUFFER_DAYS_MAX, BUFFER_DAYS_DEFAULT);
+      bufferEdit.value = String(buffer);
+      localStorage.setItem('trainBufferDays', String(buffer));
+    }
     document.getElementById('babyEditOverlay').classList.remove('active');
     document.getElementById('babyEditSheet').classList.remove('active');
-    updateBabyDisplay();
-    updatePrediction();
+    // v3.5.0 需求①②：宝宝档案 + 训练计划一并写云（best-effort，失败不打断本地保存）
+    pushHouseholdConfig(Object.assign({}, buildBabyPatch(), buildTrainingPatch()));
+    // 追加需求：与设置页训练模块共用同一条刷新链路（内含 refillTrainingInputs 双向同步 +
+    // renderDateCarousel 日期区间重算），保证任一入口保存后主页立即刷新、两处输入框取值一致。
+    refreshAfterPlanChange();
     showToast('✅ 宝宝信息已保存');
   };
   document.getElementById('babyEditOverlay').addEventListener('click', function() {
@@ -5984,24 +6204,115 @@ function dismissInstallGuide(){
     document.getElementById('babyEditSheet').classList.remove('active');
   });
 
+  // ============ v3.5.0 训练计划表单（需求②） ============
+  /** 渲染只读摘要行：准备期 N 天 + 训练 M 天 = 共 K 天 */
+  function renderTrainPlanSummary() {
+    const summaryEl = document.getElementById('trainPlanSummary');
+    if (!summaryEl) return;
+    const plan = getTrainingPlan();
+    const fmt = d => (d.getMonth() + 1) + '月' + d.getDate() + '日';
+    const parts = [];
+    if (plan.bufferDays > 0) {
+      parts.push('准备期 ' + fmt(plan.bufferStart) + '~' + fmt(plan.bufferEnd) + '（' + plan.bufferDays + '天）');
+    } else {
+      parts.push('无准备期');
+    }
+    parts.push('正式训练 ' + fmt(plan.trainStart) + '~' + fmt(plan.trainEnd) + '（' + plan.trainDays + '天）');
+    summaryEl.textContent = parts.join(' · ') +
+      '，共 ' + plan.totalSpan + ' 天；正式训练（晚上间隔安抚）始于 ' + plan.startDateStr;
+  }
+
+  /** 把当前生效的训练计划回填到设置页与宝宝弹窗的所有输入框（不绑定监听，可重复调用） */
+  function refillTrainingInputs() {
+    const plan = getTrainingPlan();
+    const startInput = document.getElementById('trainStartDate');
+    if (startInput) startInput.value = plan.startDateStr;
+    const daysInput = document.getElementById('trainDays');
+    if (daysInput) daysInput.value = String(plan.trainDays);
+    const bufferInput = document.getElementById('trainBufferDays');
+    if (bufferInput) bufferInput.value = String(plan.bufferDays);
+    const startEdit = document.getElementById('trainStartEdit');
+    if (startEdit) startEdit.value = plan.startDateStr;
+    const daysEdit = document.getElementById('trainDaysEdit');
+    if (daysEdit) daysEdit.value = String(plan.trainDays);
+    const bufferEdit = document.getElementById('trainBufferEdit');
+    if (bufferEdit) bufferEdit.value = String(plan.bufferDays);
+    const methodInput = document.getElementById('trainMethodSelect');
+    if (methodInput) methodInput.value = localStorage.getItem('trainMethod') || 'indirect';
+    renderTrainPlanSummary();
+  }
+
+  /**
+   * 训练计划变更后的统一刷新链路（摘要 + 档案徽标 + 日期区间 + 训练日文案 + 统计）。
+   * 追加需求：训练开始日期 / 缓冲天数任一变化，都必须经由本函数**立即**重算主页日期区间
+   * （renderDateCarousel 内的下限 = bufferStart-2、上限 = trainEnd+2），无需手动重载页面。
+   * 所有保存路径（设置页 change 监听、宝宝弹窗 saveBabyProfile、云端配置回填）统一收口到这里，
+   * 避免任一路径漏刷新。
+   */
+  function refreshAfterPlanChange() {
+    refillTrainingInputs();
+    updateBabyDisplay();
+    renderDateCarousel();
+    renderTimeline();
+    updatePrediction();
+    renderDataAnalytics();
+  }
+
   function initSettings() {
     const trainStartInput = document.getElementById('trainStartDate');
     const reminderInput = document.getElementById('remindPref');
-    const methodInput = document.getElementById('trainMethodSelect');
-    trainStartInput.value = localStorage.getItem('trainStartDate') || localDateStr(new Date());
-    reminderInput.value = localStorage.getItem('remindPref') || '10';
-    methodInput.value = 'indirect';
-    trainStartInput.addEventListener('change', event => {
-      if (!event.target.value) return;
-      localStorage.setItem('trainStartDate', event.target.value);
-      updateBabyDisplay();
-      updatePrediction();
-      showToast('✅ 训练开始日期已更新');
-    });
-    reminderInput.addEventListener('change', event => {
-      localStorage.setItem('remindPref', event.target.value);
-      showToast('⏰ 已保存提前 ' + event.target.value + ' 分钟的页面内提示偏好');
-    });
+    const daysInput = document.getElementById('trainDays');
+    const bufferInput = document.getElementById('trainBufferDays');
+    // v3.5.0：先回填（可重复调用），再一次性绑定监听，避免 applyHouseholdConfig 重入时重复绑定
+    refillTrainingInputs();
+    if (reminderInput) reminderInput.value = localStorage.getItem('remindPref') || '10';
+    if (initSettings._bound) return;
+    initSettings._bound = true;
+
+    if (trainStartInput) {
+      trainStartInput.addEventListener('change', event => {
+        if (!event.target.value) return;
+        localStorage.setItem('trainStartDate', event.target.value);
+        pushHouseholdConfig(buildTrainingPatch());
+        refreshAfterPlanChange();
+        showToast('✅ 训练开始日期已更新');
+      });
+    }
+    if (daysInput) {
+      daysInput.addEventListener('change', event => {
+        const raw = parseInt(event.target.value, 10);
+        const days = clampInt(raw, TRAIN_DAYS_MIN, TRAIN_DAYS_MAX, TRAIN_DAYS_DEFAULT);
+        const clamped = !Number.isFinite(raw) || raw !== days;
+        localStorage.setItem('trainDays', String(days));
+        pushHouseholdConfig(buildTrainingPatch());
+        refreshAfterPlanChange();
+        showToast(clamped
+          ? ('训练天数需在 ' + TRAIN_DAYS_MIN + '–' + TRAIN_DAYS_MAX + ' 天之间，已调整为 ' + days + ' 天')
+          : ('✅ 训练天数已更新为 ' + days + ' 天'));
+      });
+    }
+    if (bufferInput) {
+      bufferInput.addEventListener('change', event => {
+        const raw = parseInt(event.target.value, 10);
+        const buffer = clampInt(raw, BUFFER_DAYS_MIN, BUFFER_DAYS_MAX, BUFFER_DAYS_DEFAULT);
+        const clamped = !Number.isFinite(raw) || raw !== buffer;
+        localStorage.setItem('trainBufferDays', String(buffer));
+        pushHouseholdConfig(buildTrainingPatch());
+        refreshAfterPlanChange();
+        showToast(clamped
+          ? ('缓冲天数需在 ' + BUFFER_DAYS_MIN + '–' + BUFFER_DAYS_MAX + ' 天之间，已调整为 ' + buffer + ' 天')
+          : (buffer > 0
+              ? ('✅ 准备期已设为 ' + buffer + ' 天，正式训练仍从 ' + getTrainingPlan().startDateStr + ' 开始')
+              : '✅ 已取消准备期'));
+      });
+    }
+    if (reminderInput) {
+      // remindPref 是本机使用偏好（爸爸设 5 分钟不应覆盖妈妈的 10 分钟），刻意不入云。
+      reminderInput.addEventListener('change', event => {
+        localStorage.setItem('remindPref', event.target.value);
+        showToast('⏰ 已保存提前 ' + event.target.value + ' 分钟的页面内提示偏好');
+      });
+    }
   }
 
   // ============ 日期轮播滑动支持 ============
@@ -6048,6 +6359,32 @@ function dismissInstallGuide(){
       renderDateCarousel(); renderTimeline(); renderLogDay(); updatePrediction(); renderDataLog(); renderDataAnalytics();
     },
     notify: showToast,
+    /**
+     * v3.5.0 需求①：CloudSync 拉到家庭配置（或确认云端为空）之后的 UI 收口。
+     *
+     * 契约（由 app-sync.js loadHouseholdConfig 调用，见其 §5.1 时序不变式）：
+     *   1) 配置值已由 CloudSync 写回 localStorage，本函数只负责「让界面立刻反映新配置」，
+     *      自身不读写任何训练参数 localStorage key（一律经 getTrainingPlan()）；
+     *   2) 必须幂等、可重入 —— 登录 / 恢复会话 / 手动重拉都会调用；
+     *   3) **绝不抛错** —— 它在 app.afterLogin() 之前被 await，一旦抛错会被
+     *      login() / restoreSession() 的 catch 误判为「登录失败」，进而阻断登录甚至清 token。
+     *
+     * @param {Object} config CloudSync 规范化后的配置 { baby:{...}, training:{...} }
+     * @param {Object} [source] { fromCloud: boolean } 配置来源，仅用于日志
+     */
+    applyHouseholdConfig: (config, source) => {
+      try {
+        // 回填设置页 + 宝宝弹窗的全部训练输入框，并重算「训练计划概览」摘要
+        refillTrainingInputs();
+        updateBabyDisplay();
+        // 追加需求：日期区间随训练开始日 / 缓冲天数重算（下限 bufferStart-2，上限 trainEnd+2）
+        renderDateCarousel();
+        updatePrediction();
+        renderDataAnalytics();
+      } catch (e) {
+        console.warn('[applyHouseholdConfig] 渲染失败（已忽略，不影响登录流程）', e);
+      }
+    },
     afterLogin: () => {
       // 登录后拉取云端状态并应用
       applyIdentityRole();
@@ -6214,7 +6551,7 @@ function dismissInstallGuide(){
   // 导致 PWA 与 Safari 浏览器行为不一致。这里主动做版本化注册 + 强制接管 + 一次性刷新。
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
     (function initServiceWorker() {
-      var APP_VERSION = '3.4.2';
+      var APP_VERSION = '3.5.0';
       var RELOAD_FLAG = 'babysleep_sw_reloaded_v' + APP_VERSION;
       // 注册脚本 URL 带版本号：scope 相同但 scriptURL 变化时浏览器会安装并替换旧 SW，
       // 这是绕过「旧 SW 不更新」的可靠手段，等价于一次强制 unregister + register。

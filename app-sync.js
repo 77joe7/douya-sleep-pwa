@@ -19,6 +19,10 @@
   const LS_IDENTITY = 'babysleep_identity_local';
   const LS_HINTED = 'babysleep_role_hinted';
   const LS_FINGERPRINTS = 'babysleep_synced_fp';   // v3.4.2：已成功上云的事件指纹缓存
+  // v3.5.0：家庭级配置（宝宝档案 + 训练计划）缓存与脏标记
+  const LS_CFG_CACHE = 'babysleep_household_cfg';     // 最近一次成功读到的云端 meta（原样 JSON）
+  const LS_CFG_DIRTY = 'babysleep_cfg_dirty';         // 上云失败待补推的 patch（JSON）
+  const LS_CFG_HOUSEHOLD = 'babysleep_cfg_household'; // 缓存归属的 household_id，防止换家庭时串味
 
   // v3.4.2 性能修复：单批并发推送的请求数。
   // 兼顾吞吐与移动端浏览器的同域并发连接数上限（Safari 约 6）。
@@ -33,6 +37,9 @@
   let syncTimer = null;
   let syncing = false;
   let polling = false;       // v3.4.2：runPoll 自己的重入锁（旧代码只读 syncing 却从不置位，导致轮询可重入）
+  let householdConfig = null;     // v3.5.0：规范化后的家庭配置（内存缓存）
+  let cloudMetaKnown = false;     // v3.5.0：本次会话是否已成功读到云端 meta（读失败 = 未知）
+  let cloudMetaHasConfig = false; // v3.5.0：云端 meta.baby.birth 是否非空（onboarding 判定的唯一依据）
 
   // utils
   function uuid() {
@@ -435,6 +442,357 @@
     return event;
   }
 
+  // ============================================================
+  // v3.5.0 HouseholdConfigStore —— 家庭级配置存取 adapter
+  //
+  // 背景：宝宝出生日期 / 训练计划本属「家庭级」数据，v3.4.2 却只存在设备级的 localStorage。
+  // 后果：换设备或 iOS PWA standalone（与 Safari 存储容器互不可见）登录后被迫重走 onboarding。
+  // 对策：households.meta(jsonb) 承载家庭配置，localStorage 降级为纯缓存。
+  //
+  // 安全约束（重要）：
+  //   1) 本 adapter 只调用【新增】RPC auth_update_household_meta / auth_get_household_meta，
+  //      绝不触碰既有 auth_login / auth_get_session 的契约；
+  //   2) 若后端 SQL 尚未执行（RPC 不存在）→ 所有云端调用静默失败并兜底到 localStorage，
+  //      不抛错、不刷错误 toast，行为等价于 v3.4.2；
+  //   3) patch 一律以「顶层子对象」为单位下发（服务端用 jsonb || 浅合并），
+  //      buildFullPatch() 会自动把残缺子对象补全，杜绝 training 子对象被整体替换。
+  // ============================================================
+
+  /** 云端 meta 路径 → localStorage key（契约，见 system_design_v350.md §4.2） */
+  const CFG_LS = {
+    babyName: 'babyName',
+    babyBirth: 'babyBirth',
+    babyGender: 'babyGender',
+    trainStartDate: 'trainStartDate',
+    trainDays: 'trainDays',
+    trainBufferDays: 'trainBufferDays',   // v3.5.0 新增（与既有 trainDays 同族命名）
+    trainMethod: 'trainMethod',           // v3.5.0 新增
+    onboardingDone: 'babysleep_onboarding_done'
+  };
+
+  const CFG_LIMITS = { daysMin: 3, daysMax: 60, daysDefault: 14, bufferMin: 0, bufferMax: 14, bufferDefault: 0 };
+
+  function lsGet(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
+  function lsSet(key, value) { try { localStorage.setItem(key, value); } catch (e) { /* 配额不足：仅退化为不缓存 */ } }
+  function lsDel(key) { try { localStorage.removeItem(key); } catch (e) {} }
+
+  function isPlainObject(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
+  function cleanStr(v) { return (v === undefined || v === null) ? '' : String(v).trim(); }
+  /** 仅接受 YYYY-MM-DD，其它一律视为「未设置」，避免脏值污染日期计算 */
+  function cleanDate(v) {
+    const s = cleanStr(v);
+    return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : '';
+  }
+  function clampInt(v, min, max, fallback) {
+    const n = parseInt(v, 10);
+    if (!Number.isFinite(n)) return fallback;
+    return Math.min(max, Math.max(min, n));
+  }
+
+  /** 把任意来源的对象规范化成统一配置结构（越界值钳制、非法日期归空） */
+  function normalizeConfig(raw) {
+    const src = isPlainObject(raw) ? raw : {};
+    const baby = isPlainObject(src.baby) ? src.baby : {};
+    const training = isPlainObject(src.training) ? src.training : {};
+    return {
+      baby: {
+        name: cleanStr(baby.name),
+        birth: cleanDate(baby.birth),
+        gender: (baby.gender === '男' || baby.gender === '女') ? baby.gender : ''
+      },
+      training: {
+        method: cleanStr(training.method) || 'indirect',
+        startDate: cleanDate(training.startDate),
+        days: clampInt(training.days, CFG_LIMITS.daysMin, CFG_LIMITS.daysMax, CFG_LIMITS.daysDefault),
+        bufferDays: clampInt(training.bufferDays, CFG_LIMITS.bufferMin, CFG_LIMITS.bufferMax, CFG_LIMITS.bufferDefault)
+      }
+    };
+  }
+
+  /** 从 localStorage 组装当前配置（离线 / 未登录 / RPC 不可用时的唯一数据源） */
+  function readLocalConfig() {
+    return normalizeConfig({
+      baby: {
+        name: lsGet(CFG_LS.babyName) || '',
+        birth: lsGet(CFG_LS.babyBirth) || '',
+        gender: lsGet(CFG_LS.babyGender) || ''
+      },
+      training: {
+        method: lsGet(CFG_LS.trainMethod) || 'indirect',
+        startDate: lsGet(CFG_LS.trainStartDate) || '',
+        days: lsGet(CFG_LS.trainDays),
+        bufferDays: lsGet(CFG_LS.trainBufferDays)
+      }
+    });
+  }
+
+  /**
+   * 把 meta（或 patch）写回 localStorage。
+   * 只写「meta 里真实出现过的字段」，云端没带的字段绝不覆盖本地值——
+   * 这样即使云端 meta 只有 baby 子对象，本地 trainDays 也不会被默认值冲掉。
+   * @param {Object} meta 云端 meta 或本地 patch（顶层子对象结构）
+   * @returns {boolean} 是否写入了 baby.birth（= 配置完整的标志）
+   */
+  function writeMetaToLocal(meta) {
+    if (!isPlainObject(meta)) return false;
+    const cfg = normalizeConfig(meta);
+    const baby = isPlainObject(meta.baby) ? meta.baby : null;
+    const training = isPlainObject(meta.training) ? meta.training : null;
+    if (baby) {
+      if (cfg.baby.name) lsSet(CFG_LS.babyName, cfg.baby.name);
+      if (cfg.baby.birth) lsSet(CFG_LS.babyBirth, cfg.baby.birth);
+      if (Object.prototype.hasOwnProperty.call(baby, 'gender')) lsSet(CFG_LS.babyGender, cfg.baby.gender);
+    }
+    if (training) {
+      if (cfg.training.startDate) lsSet(CFG_LS.trainStartDate, cfg.training.startDate);
+      if (training.days !== undefined && training.days !== null && training.days !== '') {
+        lsSet(CFG_LS.trainDays, String(cfg.training.days));
+      }
+      if (training.bufferDays !== undefined && training.bufferDays !== null && training.bufferDays !== '') {
+        lsSet(CFG_LS.trainBufferDays, String(cfg.training.bufferDays));
+      }
+      if (cfg.training.method) lsSet(CFG_LS.trainMethod, cfg.training.method);
+    }
+    const complete = !!cfg.baby.birth;
+    // 云端已有出生日期 = onboarding 所需信息齐备，补写本机门控标记（见设计 §2.5）
+    if (complete) lsSet(CFG_LS.onboardingDone, '1');
+    return complete;
+  }
+
+  function readCachedMeta() {
+    try {
+      const raw = JSON.parse(lsGet(LS_CFG_CACHE));
+      return isPlainObject(raw) ? raw : null;
+    } catch (e) { return null; }
+  }
+  function writeCachedMeta(meta) {
+    if (!isPlainObject(meta)) return;
+    try { lsSet(LS_CFG_CACHE, JSON.stringify(meta)); } catch (e) {}
+  }
+
+  function readDirtyPatch() {
+    try {
+      const raw = JSON.parse(lsGet(LS_CFG_DIRTY));
+      return isPlainObject(raw) ? raw : null;
+    } catch (e) { return null; }
+  }
+  /** 累积待补推 patch：同一顶层子对象内按字段合并，避免后一次写覆盖前一次写 */
+  function mergeDirtyPatch(patch) {
+    if (!isPlainObject(patch)) return;
+    const pending = readDirtyPatch() || {};
+    Object.keys(patch).forEach(function (section) {
+      if (!isPlainObject(patch[section])) return;
+      pending[section] = Object.assign({}, isPlainObject(pending[section]) ? pending[section] : {}, patch[section]);
+    });
+    try { lsSet(LS_CFG_DIRTY, JSON.stringify(pending)); } catch (e) {}
+  }
+  function clearDirtyPatch() { lsDel(LS_CFG_DIRTY); }
+
+  /**
+   * 通知前端应用新配置。
+   *
+   * ⚠️ 必须吞掉回调里的任何异常：本函数在 login() / restoreSession() 的 try 块内、
+   * 且在 app.afterLogin() 之前被 await。若 UI 回调（DOM 缺失、渲染越界等）抛错冒泡上去，
+   * login() 会误报「登录失败」并跳过 afterLogin，restoreSession() 更会直接
+   * 回滚 session 并删除本地 token —— 等于把用户踢下线。
+   *
+   * @param {Object} cfg 规范化后的配置
+   * @param {boolean} fromCloud 是否来自云端 meta
+   */
+  function notifyHouseholdConfig(cfg, fromCloud) {
+    try {
+      app?.applyHouseholdConfig?.(cfg, { fromCloud: !!fromCloud });
+    } catch (e) {
+      console.warn('[applyHouseholdConfig] threw (ignored, login flow unaffected)', e);
+    }
+  }
+
+  /** 当前有效配置：内存缓存优先，否则回落到 localStorage */
+  function getConfig() {
+    if (!householdConfig) householdConfig = readLocalConfig();
+    return householdConfig;
+  }
+
+  /**
+   * 把可能残缺的 patch 补全成「完整顶层子对象」。
+   * 服务端用 jsonb `||` 浅合并：{"training":{"days":21}} 会把整个 training 子对象替换掉，
+   * 导致 startDate / bufferDays 丢失（设计文档 R2 高危风险）。此函数是该风险的唯一防线。
+   * @param {Object} patch 形如 { baby?: {...}, training?: {...} }
+   * @returns {Object|null} 补全后的 patch；无有效子对象时返回 null
+   */
+  function buildFullPatch(patch) {
+    if (!isPlainObject(patch)) return null;
+    const current = getConfig();
+    const out = {};
+    if (isPlainObject(patch.baby)) {
+      const merged = Object.assign({}, current.baby);
+      if (Object.prototype.hasOwnProperty.call(patch.baby, 'name')) merged.name = cleanStr(patch.baby.name);
+      if (Object.prototype.hasOwnProperty.call(patch.baby, 'birth')) merged.birth = cleanDate(patch.baby.birth);
+      if (Object.prototype.hasOwnProperty.call(patch.baby, 'gender')) {
+        merged.gender = (patch.baby.gender === '男' || patch.baby.gender === '女') ? patch.baby.gender : '';
+      }
+      out.baby = merged;
+    }
+    if (isPlainObject(patch.training)) {
+      const merged = Object.assign({}, current.training);
+      if (Object.prototype.hasOwnProperty.call(patch.training, 'method')) {
+        merged.method = cleanStr(patch.training.method) || 'indirect';
+      }
+      if (Object.prototype.hasOwnProperty.call(patch.training, 'startDate')) {
+        merged.startDate = cleanDate(patch.training.startDate) || merged.startDate;
+      }
+      if (Object.prototype.hasOwnProperty.call(patch.training, 'days')) {
+        merged.days = clampInt(patch.training.days, CFG_LIMITS.daysMin, CFG_LIMITS.daysMax, merged.days);
+      }
+      if (Object.prototype.hasOwnProperty.call(patch.training, 'bufferDays')) {
+        merged.bufferDays = clampInt(patch.training.bufferDays, CFG_LIMITS.bufferMin, CFG_LIMITS.bufferMax, merged.bufferDays);
+      }
+      out.training = merged;
+    }
+    return Object.keys(out).length ? out : null;
+  }
+
+  /**
+   * 保存配置：先本地（立即生效）→ 再 best-effort 上云。
+   * 契约：永不抛错、永不弹错误 toast。RPC 缺失 / 离线 / 越权一律静默降级为本地保存。
+   * @param {Object} patch 顶层子对象粒度的 patch，如 { training: {...} }
+   * @returns {Promise<boolean>} 是否成功写入云端
+   */
+  async function saveHouseholdConfig(patch) {
+    const full = buildFullPatch(patch);
+    if (!full) return false;
+    // 1) 本地先行：无论云端成败，本机行为都立刻正确
+    writeMetaToLocal(full);
+    householdConfig = normalizeConfig(Object.assign({}, readCachedMeta() || {}, full));
+    if (!configured || !session || !session.token) return false;
+    // 2) best-effort 上云
+    try {
+      const r = await rpc('auth_update_household_meta', { p_patch: full }, true);
+      const meta = isPlainObject(r) ? r : (Array.isArray(r) && isPlainObject(r[0]) ? r[0] : null);
+      if (meta) {
+        writeCachedMeta(meta);
+        householdConfig = normalizeConfig(meta);
+        cloudMetaKnown = true;
+        cloudMetaHasConfig = !!normalizeConfig(meta).baby.birth;
+      } else {
+        cloudMetaHasConfig = cloudMetaHasConfig || !!(full.baby && full.baby.birth);
+      }
+      clearDirtyPatch();
+      return true;
+    } catch (e) {
+      // 后端 SQL 未执行 / 离线 / 权限不足：静默兜底，标记待补推
+      console.warn('[auth_update_household_meta] failed (fallback to local)', e);
+      mergeDirtyPatch(full);
+      return false;
+    }
+  }
+
+  /** 上线后补推离线期间累积的配置变更（在 restoreSession 的 push 之前调用） */
+  async function flushDirtyConfig() {
+    const pending = readDirtyPatch();
+    if (!pending) return false;
+    if (!configured || !session || !session.token || !navigator.onLine) return false;
+    try {
+      await rpc('auth_update_household_meta', { p_patch: pending }, true);
+      clearDirtyPatch();
+      return true;
+    } catch (e) {
+      console.warn('[flushDirtyConfig] failed', e);
+      return false;
+    }
+  }
+
+  /**
+   * 登录 / 恢复会话后拉取家庭配置并回填本地。
+   *
+   * ⚠️ 时序不变式（设计 §5.1）：必须在 app.afterLogin() 之前 await 完成，
+   *    否则 postLoginFlow → isOnboardingNeeded 会先跑一步，onboarding 页会闪现。
+   *
+   * @param {Object} [options]
+   * @param {boolean} [options.seed=true] 云端为空且本机有完整配置时，是否反向上传一次（老家庭平滑升级）
+   * @returns {Promise<Object>} 规范化配置
+   */
+  async function loadHouseholdConfig(options) {
+    const opts = options || {};
+    const allowSeed = opts.seed !== false;
+    cloudMetaKnown = false;
+    cloudMetaHasConfig = false;
+
+    if (!configured || !session || !session.token) {
+      householdConfig = readLocalConfig();
+      notifyHouseholdConfig(householdConfig, false);
+      return householdConfig;
+    }
+
+    // 换家庭检测：缓存里记录的 household_id 与当前不同 → 本机数据属于别的家庭，禁止 seeding
+    const currentHid = cleanStr(session.household_id);
+    const cachedHid = cleanStr(lsGet(LS_CFG_HOUSEHOLD));
+    const sameHousehold = !cachedHid || !currentHid || cachedHid === currentHid;
+    if (!sameHousehold) { lsDel(LS_CFG_CACHE); clearDirtyPatch(); }
+
+    let meta = null;
+    try {
+      const r = await rpc('auth_get_household_meta', {}, true);
+      meta = isPlainObject(r) ? r : (Array.isArray(r) && isPlainObject(r[0]) ? r[0] : {});
+      cloudMetaKnown = true;
+    } catch (e) {
+      // RPC 尚未部署 / 网络不可达：退化为本地配置，行为等价 v3.4.2
+      console.warn('[auth_get_household_meta] unavailable (fallback to local)', e);
+      meta = null;
+    }
+
+    if (cloudMetaKnown && currentHid) lsSet(LS_CFG_HOUSEHOLD, currentHid);
+
+    if (meta && normalizeConfig(meta).baby.birth) {
+      // 云端有完整配置 → 云端为准，覆盖回填本地
+      writeCachedMeta(meta);
+      writeMetaToLocal(meta);
+      householdConfig = normalizeConfig(meta);
+      cloudMetaHasConfig = true;
+      notifyHouseholdConfig(householdConfig, true);
+      return householdConfig;
+    }
+
+    // 云端为空：尝试 seeding（老家庭原设备平滑升级）
+    householdConfig = readLocalConfig();
+    const localComplete = !!householdConfig.baby.birth && lsGet(CFG_LS.onboardingDone) === '1';
+    if (cloudMetaKnown && allowSeed && sameHousehold && localComplete) {
+      const seeded = await saveHouseholdConfig({
+        baby: householdConfig.baby,
+        training: householdConfig.training
+      });
+      if (seeded) cloudMetaHasConfig = true;
+    }
+    notifyHouseholdConfig(householdConfig, false);
+    return householdConfig;
+  }
+
+  /** 「清除全部数据」：best-effort 把云端 meta 置空（影响全家，属预期行为） */
+  async function resetHouseholdConfig() {
+    householdConfig = null;
+    cloudMetaHasConfig = false;
+    lsDel(LS_CFG_CACHE);
+    clearDirtyPatch();
+    if (!configured || !session || !session.token) return false;
+    try {
+      await rpc('auth_update_household_meta', { p_patch: { baby: {}, training: {} } }, true);
+      return true;
+    } catch (e) {
+      console.warn('[resetHouseholdConfig] failed', e);
+      return false;
+    }
+  }
+
+  /** 退出登录 / 换账号：清空内存与本地缓存，防止 A 家庭配置泄漏到 B 家庭 */
+  function clearHouseholdConfigCache() {
+    householdConfig = null;
+    cloudMetaKnown = false;
+    cloudMetaHasConfig = false;
+    lsDel(LS_CFG_CACHE);
+    lsDel(LS_CFG_HOUSEHOLD);
+    clearDirtyPatch();
+  }
+
   // 同步
   async function syncNow() {
     if (!session || !babyId || !navigator.onLine || syncing) return;
@@ -510,6 +868,10 @@
       localStorage.setItem(LS_TOKEN, session.token);
       // 通过 auth_get_session 获取宝宝 uuid（不走直接 REST，避免 revoke 权限阻断）
       await resolveBabyId();
+      // v3.5.0 需求①：先把家庭配置拉下来回填 localStorage，再进入主流程。
+      // 必须在 app.afterLogin() 之前 await 完成，否则 postLoginFlow → isOnboardingNeeded
+      // 会抢在配置到达前判定，已有家庭仍会被要求重走 onboarding（设计 §5.1 时序不变式）。
+      await loadHouseholdConfig();
       refreshAccountUI();
       notify('登录成功');
       startPolling();
@@ -528,9 +890,14 @@
       const row = Array.isArray(r) ? r[0] : r;
       // v3.4.2：新建家庭 = 新的 baby_id，旧指纹全部失效。
       resetFingerprints();
+      // v3.5.0：新建家庭 = 全新的 household，旧配置缓存必须先清，
+      // 否则上一个家庭遗留的 babyBirth 会让 onboarding 被错误跳过。
+      clearHouseholdConfigCache();
       session = { token: row.token, household_id: row.household_id, family_name: row.family_name, baby_name: row.baby_name, baby_id: row.baby_id, display_name: '家庭成员', identity_local: 'editor' };
       localStorage.setItem(LS_TOKEN, session.token);
       await resolveBabyId();
+      // 新建家庭的云端 meta 恒为空，且严禁 seeding（不能把上一个家庭的档案写进新家庭）
+      await loadHouseholdConfig({ seed: false });
       refreshAccountUI();
       notify('家庭已创建');
       startPolling();
@@ -567,6 +934,9 @@
       if (!localStorage.getItem(LS_DISPLAY)) localStorage.setItem(LS_DISPLAY, session.display_name);
       if (!localStorage.getItem(LS_IDENTITY)) localStorage.setItem(LS_IDENTITY, session.identity_local);
       await resolveBabyId();
+      // v3.5.0：热启动同样先拉家庭配置（await），保证 loginGate 判定时配置已就位。
+      await flushDirtyConfig();
+      await loadHouseholdConfig();
       refreshAccountUI();
       // v3.4.2：拉取前先补一次推送。
       // restoreSession 原本是唯一「只 pull 不 push」的入口（syncNow / runPoll 都是先 push 后 pull）。
@@ -594,6 +964,8 @@
     localStorage.removeItem(LS_TOKEN);
     // v3.4.2：退出登录后清空指纹，避免下次换账号登录时漏推。
     resetFingerprints();
+    // v3.5.0：同步清空家庭配置缓存，语义与 resetFingerprints 一致（防止 A 家庭配置泄漏到 B 家庭）。
+    clearHouseholdConfigCache();
     stopPolling();
     refreshAccountUI();
     notify('已退出登录');
@@ -659,6 +1031,19 @@
     isSignedIn: () => !!session,
     getBabyId: () => babyId,
     getSession: () => session,
-    isConfigured: () => configured
+    isConfigured: () => configured,
+    // ===== v3.5.0 家庭配置（宝宝档案 + 训练计划）=====
+    /** 当前规范化配置 { baby:{name,birth,gender}, training:{method,startDate,days,bufferDays} } */
+    getHouseholdConfig: () => getConfig(),
+    /** 保存配置：先本地后云端，best-effort，永不抛错 */
+    saveHouseholdConfig: (patch) => saveHouseholdConfig(patch),
+    /** 主动重新拉取（登录 / 恢复会话已自动调用，一般无需手工调） */
+    loadHouseholdConfig: (options) => loadHouseholdConfig(options),
+    /** 本次会话是否已成功读到云端 meta（读失败 = 未知，此时不得用云端结论做门控） */
+    isCloudConfigKnown: () => cloudMetaKnown,
+    /** 云端 meta.baby.birth 是否非空 —— isOnboardingNeeded() 的唯一依据 */
+    hasCloudConfig: () => cloudMetaHasConfig,
+    /** 「清除全部数据」用：best-effort 置空云端 meta */
+    resetHouseholdConfig: () => resetHouseholdConfig()
   };
 })();
