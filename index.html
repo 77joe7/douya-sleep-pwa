@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>小豆芽 · 宝宝睡眠 v3.4.1</title>
+<title>小豆芽 · 宝宝睡眠 v3.4.2</title>
 
 <!-- PWA -->
 <link rel="manifest" href="manifest.json">
@@ -2046,8 +2046,8 @@
   <button onclick="dismissInstallGuide()">我知道了</button>
 </div>
 
-<script src="./config.js?v=3.4.1"></script>
-<script src="./app-sync.js?v=3.4.1"></script>
+<script src="./config.js?v=3.4.2"></script>
+<script src="./app-sync.js?v=3.4.2"></script>
 <script>
 (function(){
   var ua=navigator.userAgent;
@@ -3163,6 +3163,117 @@ function dismissInstallGuide(){
     return NaN;
   }
 
+  // ============ v3.4.2 Bug A：事件语义名称推断 ============
+  /** 时间轴卡片在无法确定事件语义时使用的通用占位名。 */
+  const GENERIC_EVENT_TITLE = '记录';
+
+  /**
+   * type → 语义标题 的静态映射。
+   * 云端 events 表的历史行不含 title（v3.4.2 起才随 payload 上云），
+   * 这些行回灌到本地后必须按 type 反推名称，否则整条时间轴会退化成一片「记录」。
+   */
+  const TYPE_TITLE_MAP = {
+    nap_start: '入睡',        nap_end: '醒来',        nap_record: '小觉',        nap: '小觉',
+    feed_start: '喂奶开始',   feed_end: '喂奶结束',   feed_record: '喂养',       feed: '喂养',
+    cry_start: '哭闹开始',    cry_end: '哭闹结束',    cry_record: '哭闹',        cry: '哭闹',
+    ritual_start: '仪式开始', ritual_end: '仪式结束', ritual_record: '睡眠仪式', ritual: '睡眠仪式',
+    putdown_start: '放下',    putdown_end: '抱起',    putdown_record: '放下',    putdown: '放下',
+    comfort_start: '安抚',    comfort_end: '安抚',    comfort_record: '安抚',    comfort: '安抚',
+    soothe_start: '安抚',     soothe_end: '安抚',     soothe_record: '安抚',     soothe: '安抚'
+  };
+
+  /**
+   * 把任意值收敛成去空白的字符串；null / undefined 及其字符串化形式一律视为空。
+   * @param {*} value 任意值
+   * @returns {string} 规整后的字符串，空值返回 ''
+   */
+  function cleanText(value) {
+    if (value === null || value === undefined) return '';
+    const text = String(value).trim();
+    return (text === 'undefined' || text === 'null') ? '' : text;
+  }
+
+  /**
+   * 按事件 type 推断人类可读的语义名称。
+   * 先查静态表 TYPE_TITLE_MAP；未命中时拆出 prefix + 动作后缀，
+   * 从 toggles 配置反查 labelOn / labelOff —— 这样将来新增 toggle 类型无需同步维护静态表。
+   *
+   * 注意：loadEvents() 在 `const toggles` 之前执行，此时 toggles 处于 TDZ，
+   * 连 typeof 都会抛 ReferenceError，故必须用 try/catch 安全降级。
+   *
+   * @param {string} type 事件类型，形如 'nap_start' / 'feed_end' / 'comfort_record'
+   * @returns {string} 推断出的名称；无法推断时返回 ''
+   */
+  function inferTitleFromType(type) {
+    const raw = cleanText(type);
+    if (!raw) return '';
+    if (TYPE_TITLE_MAP[raw]) return TYPE_TITLE_MAP[raw];
+
+    const sepIndex = raw.lastIndexOf('_');
+    const prefix = sepIndex === -1 ? raw : raw.slice(0, sepIndex);
+    const action = sepIndex === -1 ? '' : raw.slice(sepIndex + 1);
+
+    let config = null;
+    try {
+      config = (typeof toggles !== 'undefined' && toggles) ? toggles[prefix] : null;
+    } catch (e) {
+      config = null; // toggles 尚未初始化（TDZ），安全降级到静态表
+    }
+    if (config) {
+      if (action === 'end') return cleanText(config.labelOff) || cleanText(config.labelOn);
+      return cleanText(config.labelOn) || cleanText(config.labelOff);
+    }
+    return TYPE_TITLE_MAP[prefix] || '';
+  }
+
+  /**
+   * 解析事件应显示的标题，三级兜底：
+   *   顶层 title → payload.title → 按 type 推断 → 通用占位「记录」。
+   * 若已有标题恰好就是通用占位（历史坏数据已被持久化进 localStorage / 云端），
+   * 同样重新按 type 推断，从而让存量数据也能自愈成正确名称。
+   *
+   * @param {Object} event 事件对象（至少含 type / title / payload）
+   * @returns {string} 最终标题，恒为非空字符串
+   */
+  function resolveEventTitle(event) {
+    const payload = (event && event.payload && typeof event.payload === 'object') ? event.payload : {};
+    const explicit = cleanText(event && event.title) || cleanText(payload.title);
+    if (explicit && explicit !== GENERIC_EVENT_TITLE) return explicit;
+    return inferTitleFromType(event && event.type) || explicit || GENERIC_EVENT_TITLE;
+  }
+
+  /**
+   * 合并「本地事件」与「同 id 的云端事件」：结构字段以云端为准，
+   * 但云端缺失（或仍是通用占位）的字段回落到本地值，避免云端历史行把本地信息清空。
+   *
+   * 注意：传入的 remote 必须是**未经 normalizeEvent 处理**的原始云端事件。
+   * 一旦提前归一化，缺失的 title 会被推断成通用名（如「入睡」），
+   * 反而把本地更具体的名称（如「第一觉入睡」）覆盖掉。
+   *
+   * @param {Object} local  本地已有事件
+   * @param {Object} remote 云端拉取的同 id 原始事件
+   * @returns {Object} 合并后的事件
+   */
+  function mergeEventRecords(local, remote) {
+    const merged = { ...local };
+    // 云端字段逐个覆盖；但 null / undefined 不得清空本地已有值——
+    // 云端 events 表的历史行普遍缺字段，直接展开会把本地信息抹掉。
+    Object.keys(remote).forEach(key => {
+      const value = remote[key];
+      if (value === null || value === undefined) return;
+      merged[key] = value;
+    });
+    // 语义字段特判：云端为空串或仍是通用占位「记录」时，保留本地更具体的值。
+    const localTitle = cleanText(local.title);
+    const remoteTitle = cleanText(remote.title);
+    if ((!remoteTitle || remoteTitle === GENERIC_EVENT_TITLE) && localTitle && localTitle !== GENERIC_EVENT_TITLE) {
+      merged.title = localTitle;
+    }
+    if (!cleanText(remote.detail) && cleanText(local.detail)) merged.detail = local.detail;
+    if (!Array.isArray(remote.tags) && Array.isArray(local.tags)) merged.tags = local.tags;
+    return merged;
+  }
+
   function normalizeEvent(event) {
     if (!event || typeof event !== 'object') return null;
     const ts = toTimestamp(event.ts);
@@ -3171,8 +3282,14 @@ function dismissInstallGuide(){
     normalized.id = String(normalized.id || ('e' + ts + Math.random().toString(36).slice(2, 7)));
     // v3.4.1 Bug B：time 始终由 ts 派生，保证「时间轴显示的时间」与「排序/归日所用的 ts」永不脱节
     normalized.time = new Date(ts).toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'});
-    normalized.title = String(normalized.title || '记录');
-    normalized.detail = String(normalized.detail || '');
+    // v3.4.2 Bug A：title 缺失/为通用占位时按 type 推断语义名称，最后才退化成「记录」。
+    // normalizeEvent 是所有入库路径（本地新增 / localStorage 读取 / 云端回灌 / 导入）的唯一收口。
+    normalized.title = resolveEventTitle(normalized);
+    // detail 仅在「事件本身没有 detail 字段」时才从 payload 回填。
+    // 不能用 `||` 兜底：那会让用户主动清空的备注被 payload 里的旧值复活。
+    const payload = (normalized.payload && typeof normalized.payload === 'object') ? normalized.payload : {};
+    const hasOwnDetail = normalized.detail !== undefined && normalized.detail !== null;
+    normalized.detail = hasOwnDetail ? cleanText(normalized.detail) : cleanText(payload.detail);
     return normalized;
   }
 
@@ -3880,7 +3997,12 @@ function dismissInstallGuide(){
     var dayEvents = events.filter(function(e) {
       return isValidEvent(e) && isSameLocalDay(e.ts, selectedDate);
     });
-    var filtered = dayEvents.filter(function(e) { return timelineFilters.has(eventCategory(e)); });
+    // v3.4.2 Bug B：'other' 不在 timelineFilterCategories（只有 sleep/feed/routine/cry）里，
+    // 若让它参与筛选则永远命中不到 → 未知或自定义 type 的记录被静默吞掉。故未知类别恒可见。
+    var filtered = dayEvents.filter(function(e) {
+      var cat = eventCategory(e);
+      return cat === 'other' || timelineFilters.has(cat);
+    });
     var sorted = filtered.slice().sort(function(a,b) { return b.ts - a.ts; });
     // 类别配色：图标容器背景 + 左侧竖线
     var catStyle = {
@@ -3917,7 +4039,9 @@ function dismissInstallGuide(){
           '<div class="event-body" style="flex:1;min-width:0;">' +
             /* 第一行：标题 + 时间 */
             '<div class="event-head">' +
-              '<span class="event-title" style="font-size:14px;">' + escapeHTML(ev.title || s.label) + '</span>' +
+              /* v3.4.2 Bug A：标题四级兜底 —— 已归一化的 title → 按 type 推断 → 分类默认名 → 通用占位。
+                 即使有未经 normalizeEvent 的事件混入（如外部直接 push），也不会出现空标题。 */
+              '<span class="event-title" style="font-size:14px;">' + escapeHTML(cleanText(ev.title) || inferTitleFromType(ev.type) || s.label || GENERIC_EVENT_TITLE) + '</span>' +
               '<span class="event-time" style="font-size:12px;">' + escapeHTML(ev.time || formatTimeInput(ev.ts)) + '</span>' +
             '</div>' +
             /* 第二行：时长 + 备注(截断) + 编辑者 */
@@ -5897,7 +6021,26 @@ function dismissInstallGuide(){
   window.BabySleepApp = {
     getEvents: () => events.filter(isValidEvent).map(event => ({...event})),
     replaceEvents: remoteEvents => {
-      events = (Array.isArray(remoteEvents) ? remoteEvents : []).map(normalizeEvent).filter(Boolean).sort((a,b)=>a.ts-b.ts);
+      // v3.4.2 Bug A/B 修复：由「整表覆盖」改为「按 id 合并」。
+      // 旧实现直接用云端结果覆盖 events 并写回 localStorage，导致三类问题：
+      //   1) 云端行缺 title/detail → 本地语义字段被清空 → 卡片名全部退化成「记录」（Bug A 的直接触发点）；
+      //   2) 轮询只拉取有限时间窗 → 窗口外的历史记录被挤掉（记录「被吞」）；
+      //   3) pushEventToCloud 静默失败的记录尚未上云就被云端结果冲掉 → 新记录丢失。
+      // 合并策略：同 id 以云端为准，但云端缺失的语义字段用本地值补齐；
+      // 云端没有的本地事件一律保留（可能是尚未同步成功、或超出本次拉取窗口的记录）。
+      // 注：轮询本就会把全部本地事件重新 push 上云，故保留本地独有事件不会改变既有的删除语义。
+      // 云端事件在合并前**不能**先 normalizeEvent：否则缺失的 title 会被推断成通用名，
+      // 进而覆盖本地更具体的名称。统一在合并完成后再做一次归一化。
+      const remoteList = (Array.isArray(remoteEvents) ? remoteEvents : []).filter(isValidEvent);
+      const mergedMap = new Map();
+      events.filter(isValidEvent).forEach(localEvent => { mergedMap.set(String(localEvent.id), localEvent); });
+      remoteList.forEach((remoteEvent, index) => {
+        // 云端行理论上恒有 id；万一缺失则用下标兜底，避免多条无 id 记录互相覆盖。
+        const key = cleanText(remoteEvent.id) || ('remote_' + index);
+        const localEvent = mergedMap.get(key);
+        mergedMap.set(key, localEvent ? mergeEventRecords(localEvent, remoteEvent) : remoteEvent);
+      });
+      events = Array.from(mergedMap.values()).map(normalizeEvent).filter(Boolean).sort((a,b)=>a.ts-b.ts);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(events));
       Object.values(toggles).forEach(toggle => { toggle.active=false; toggle.startTime=null; toggle.sessionId=null; });
       restoreToggleStates();
@@ -6067,12 +6210,55 @@ function dismissInstallGuide(){
   })();
 
   // Safari/PWA：启用离线缓存，并在每次启动时检查新版本。
+  // v3.4.2：iOS「添加到主屏幕」的 PWA 容易长期停留在安装时缓存的旧 HTML 上，
+  // 导致 PWA 与 Safari 浏览器行为不一致。这里主动做版本化注册 + 强制接管 + 一次性刷新。
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./service-worker.js', { scope: './' })
-        .then(registration => registration.update())
-        .catch(error => console.warn('[PWA] Service Worker 注册失败：', error));
-    });
+    (function initServiceWorker() {
+      var APP_VERSION = '3.4.2';
+      var RELOAD_FLAG = 'babysleep_sw_reloaded_v' + APP_VERSION;
+      // 注册脚本 URL 带版本号：scope 相同但 scriptURL 变化时浏览器会安装并替换旧 SW，
+      // 这是绕过「旧 SW 不更新」的可靠手段，等价于一次强制 unregister + register。
+      var SW_URL = './service-worker.js?v=' + APP_VERSION;
+      var hadController = !!navigator.serviceWorker.controller;
+      var reloading = false;
+
+      /** 让处于 waiting 态的新 SW 立即跳过等待并接管页面。 */
+      function activateWaitingWorker(registration) {
+        if (registration && registration.waiting) {
+          registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+        }
+      }
+
+      navigator.serviceWorker.addEventListener('controllerchange', function() {
+        // 仅在「原本已有旧 SW 控制页面」时才刷新，避免首次安装白白多刷一次。
+        // sessionStorage 标记防止刷新循环。
+        if (reloading || !hadController) return;
+        try {
+          if (sessionStorage.getItem(RELOAD_FLAG)) return;
+          sessionStorage.setItem(RELOAD_FLAG, '1');
+        } catch (e) { /* 隐私模式下 sessionStorage 不可用时忽略 */ }
+        reloading = true;
+        location.reload();
+      });
+
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register(SW_URL, { scope: './' })
+          .then(function(registration) {
+            activateWaitingWorker(registration);
+            registration.addEventListener('updatefound', function() {
+              var installing = registration.installing;
+              if (!installing) return;
+              installing.addEventListener('statechange', function() {
+                if (installing.state === 'installed' && navigator.serviceWorker.controller) {
+                  activateWaitingWorker(registration);
+                }
+              });
+            });
+            return registration.update();
+          })
+          .catch(function(error) { console.warn('[PWA] Service Worker 注册失败：', error); });
+      });
+    })();
   }
 </script>
 

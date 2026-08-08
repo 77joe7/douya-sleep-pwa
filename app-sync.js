@@ -206,13 +206,35 @@
     } catch (e) { console.warn('[list_events] failed', e); return null; }
   }
 
+  /**
+   * v3.4.2 Bug A 修复：把「语义字段」随 payload 一并上云。
+   *
+   * 修复前 upsert_event 只上传 type/ts/status 等结构字段，title/detail 从不上云；
+   * 云端回灌（replaceEvents）后本地 title 丢失 → 前端 normalizeEvent 退化成通用的「记录」。
+   * 这里复用 upsert_event 既有的 p_payload 自由 JSON 字段承载语义信息，
+   * RPC 签名与参数个数完全不变，因此不破坏任何 API 契约。
+   *
+   * @param {Object} ev 本地事件对象
+   * @returns {Object} 待上传的 payload（始终为普通对象，不会是 null）
+   */
+  function toCloudPayload(ev) {
+    const base = (ev && ev.payload && typeof ev.payload === 'object') ? Object.assign({}, ev.payload) : {};
+    // 语义字段一律以事件当前值为准：为空时必须删除 payload 里的旧值，
+    // 否则用户清空备注后，旧的 payload.detail 会在下次云端回灌时把备注「复活」。
+    if (ev && ev.title) base.title = String(ev.title); else delete base.title;
+    if (ev && ev.detail) base.detail = String(ev.detail); else delete base.detail;
+    if (ev && ev.intensity !== undefined && ev.intensity !== null) base.intensity = ev.intensity; else delete base.intensity;
+    if (ev && Array.isArray(ev.tags)) base.tags = ev.tags.slice(); else delete base.tags;
+    return base;
+  }
+
   async function pushEventToCloud(ev) {
     if (!session || !babyId) return false;
     try {
       await rpc('upsert_event', {
         p_id: ev.id, p_baby_id: babyId, p_type: ev.type, p_ts: ev.ts,
         p_status: ev.status || 'complete', p_activity_key: ev.activityKey || null,
-        p_session_id: ev.sessionId || null, p_payload: ev.payload || {},
+        p_session_id: ev.sessionId || null, p_payload: toCloudPayload(ev),
         p_recorder_name: ev.recorderName || localStorage.getItem(LS_DISPLAY) || '家庭成员',
         p_recorder_role: ev.recorderRole || (localStorage.getItem(LS_IDENTITY) || 'editor')
       }, true);
@@ -266,14 +288,29 @@
     } catch (e) { notify('修改失败：' + friendlyError(e)); }
   }
 
+  /**
+   * 云端行 → 本地事件对象。
+   * v3.4.2 Bug A 修复：从 payload 还原 title/detail/intensity/tags 等语义字段。
+   * 修复前这些字段整体缺失，导致云端回灌后时间轴卡片名全部退化成「记录」、备注被清空。
+   * 对更早写入、payload 里没有 title 的历史行，前端 normalizeEvent 会按 type 推断名称兜底。
+   *
+   * @param {Object} row list_events 返回的一行
+   * @returns {Object} 本地事件对象
+   */
   function rowToEvent(row) {
-    return {
+    const payload = (row && row.payload && typeof row.payload === 'object') ? row.payload : {};
+    const event = {
       id: row.id, type: row.type, ts: Number(row.ts),
       status: row.status, activityKey: row.activity_key, sessionId: row.session_id,
-      payload: row.payload || {},
+      payload: payload,
       recorderName: row.recorder_name, recorderRole: row.recorder_role,
       deviceId: row.device_id
     };
+    if (payload.title) event.title = String(payload.title);
+    if (payload.detail) event.detail = String(payload.detail);
+    if (payload.intensity !== undefined && payload.intensity !== null) event.intensity = payload.intensity;
+    if (Array.isArray(payload.tags)) event.tags = payload.tags.slice();
+    return event;
   }
 
   // 同步
@@ -318,7 +355,9 @@
     const list = app?.getEvents?.() || [];
     if (list.length) for (const ev of list) await pushEventToCloud(ev);
     const now = Date.now();
-    const remote = await loadEventsFromCloud(now - 30 * 86400 * 1000, now + 86400 * 1000);
+    // v3.4.2 Bug B：轮询窗口由 30 天放宽到 365 天，与 syncNow / restoreSession 保持一致。
+    // 修复前每 3 秒的轮询只拉最近 30 天，回灌时会把更早的记录挤出本地缓存（记录「被吞」）。
+    const remote = await loadEventsFromCloud(now - 365 * 86400 * 1000, now + 86400 * 1000);
     if (remote && app?.replaceEvents) app.replaceEvents(remote);
   }
 

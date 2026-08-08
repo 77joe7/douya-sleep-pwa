@@ -1,5 +1,5 @@
 // BabySleep Service Worker - 离线支持 + 缓存策略
-const CACHE_NAME = 'babysleep-v3.4.1';
+const CACHE_NAME = 'babysleep-v3.4.2';
 const APP_SHELL = new URL('./index.html', self.registration.scope).toString();
 const ASSETS = [
   './',
@@ -16,6 +16,7 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', (event) => {
+  console.log('[SW] v3.4.2 installing');
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       console.log('[SW] Caching core assets');
@@ -23,6 +24,15 @@ self.addEventListener('install', (event) => {
     })
   );
   self.skipWaiting();
+});
+
+// v3.4.2：页面检测到新版本时会 postMessage({type:'SKIP_WAITING'})，
+// 让 waiting 态的新 SW 立刻接管，避免 iOS PWA 长期停留在旧缓存的 HTML 上。
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    console.log('[SW] v3.4.2 skipWaiting by client request');
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener('activate', (event) => {
