@@ -2104,7 +2104,7 @@ function dismissInstallGuide(){
           </div>
           <div class="form-field" style="margin-bottom:8px;">
             <div class="form-label">密码</div>
-            <input class="form-input" id="loginPassword" type="password" placeholder="请输入密码" autocomplete="current-password">
+            <input class="form-input" id="loginPassword" type="password" placeholder="请输入密码" autocomplete="off">
           </div>
 
           <!-- v3.2.2 模式提示行：告知当前是登录还是注册语境 -->
@@ -3762,28 +3762,69 @@ function dismissInstallGuide(){
 
   function getSleepPairsForDate(date) {
     const bounds = dayBounds(date);
+    // v3.5.1 Fix #5：事件流遍历配对，替代原有按顺序映射的脆弱逻辑。
+    // 入睡事件限定当天范围，醒来事件取全量（入睡跨天时醒来可能在次日）。
     const starts = events
-      .filter(event => isSleepStart(event) && event.ts >= bounds.start && event.ts < bounds.end)
+      .filter(e => isValidEvent(e) && isSleepStart(e) && e.ts >= bounds.start && e.ts < bounds.end)
       .sort((a, b) => a.ts - b.ts);
-    const ends = events.filter(isSleepEnd).sort((a, b) => a.ts - b.ts);
-    const usedEndIds = new Set();
-    return starts.map((start, index) => {
-      const classification = classifySleep(start.ts);
-      const maxDuration = classification === 'night' ? 18 * 60 : 5 * 60;
-      const nextStartTs = starts[index + 1]?.ts ?? Infinity;
-      const end = ends.find(candidate =>
-        !usedEndIds.has(candidate.id) &&
-        candidate.ts > start.ts &&
-        candidate.ts < nextStartTs &&
-        candidate.ts - start.ts <= maxDuration * 60000
-      ) || null;
-      if (end) usedEndIds.add(end.id);
-      const duration = end ? Math.round((end.ts - start.ts) / 60000) : null;
-      return {
-        start, end, duration: duration != null && duration >= 0 ? duration : null,
-        night: classification === 'night'
-      };
-    });
+    const ends = events
+      .filter(e => isValidEvent(e) && isSleepEnd(e))
+      .sort((a, b) => a.ts - b.ts);
+
+    // 合并为时间线，按时间序遍历
+    const timeline = [];
+    for (const s of starts) timeline.push({ ev: s, isStart: true });
+    for (const e of ends)  timeline.push({ ev: e, isStart: false });
+    timeline.sort((a, b) => a.ev.ts - b.ev.ts);
+
+    const pairs = [];
+    const errors = [];
+    let pending = null; // { start, end }
+
+    for (const item of timeline) {
+      const ev = item.ev;
+      if (item.isStart) {
+        // 上一个入睡尚未配对就遇到新入睡 → 标记未完成
+        if (pending && !pending.end) {
+          pending.error = 'no_wake';
+          pairs.push({ start: pending.start, end: null, duration: null, night: classifySleep(pending.start.ts) === 'night', error: 'no_wake' });
+        }
+        pending = { start: ev, end: null };
+      } else {
+        // 醒来事件
+        if (!pending) {
+          errors.push({ type: 'consecutive_wake', event: ev });
+          console.warn('[sleepPairs] 连续醒来事件（无前导入睡）:', new Date(ev.ts).toISOString(), ev);
+          continue;
+        }
+        if (pending.end) {
+          errors.push({ type: 'consecutive_wake', event: ev });
+          console.warn('[sleepPairs] 连续醒来事件（重复醒来）:', new Date(ev.ts).toISOString(), ev);
+          continue;
+        }
+        const classification = classifySleep(pending.start.ts);
+        const maxDuration = classification === 'night' ? 18 * 60 : 5 * 60;
+        const durationMs = ev.ts - pending.start.ts;
+        if (durationMs > maxDuration * 60000) {
+          pending.error = 'timeout';
+          pairs.push({ start: pending.start, end: null, duration: null, night: classification === 'night', error: 'timeout' });
+          pending = null;
+          continue;
+        }
+        pending.end = ev;
+        const duration = Math.round(durationMs / 60000);
+        pairs.push({ start: pending.start, end: ev, duration: duration >= 0 ? duration : null, night: classification === 'night', error: null });
+        pending = null;
+      }
+    }
+
+    // 末尾未配对入睡
+    if (pending) {
+      pairs.push({ start: pending.start, end: null, duration: null, night: classifySleep(pending.start.ts) === 'night', error: null });
+    }
+
+    window.__sleepPairErrors = errors;
+    return pairs;
   }
 
   function getMorningStartEvent(date) {
@@ -3808,7 +3849,7 @@ function dismissInstallGuide(){
         function updatePrediction() {
     const now = new Date(), nowTs = now.getTime(), nowH = now.getHours();
     const heroCardEl = document.getElementById('heroCard');
-    if (heroCardEl) heroCardEl.classList.remove('sleeping');
+    if (heroCardEl) { heroCardEl.classList.remove('sleeping'); heroCardEl.classList.remove('flipped'); }
     // v3.5.0：训练参数统一走 getTrainingPlan()。bufferDays=0 时下面两行的取值与 v3.4.2 完全等价。
     const plan = getTrainingPlan();
     const trainDay = Math.max(1, plan.dayIndexOf(now));
@@ -3864,6 +3905,19 @@ function dismissInstallGuide(){
       return;
     }
 
+    // v3.5.1 Fix #3：夜觉已结束（openSleep=null）但仍处夜间 → 同样显示夜觉卡片，避免误入白天小觉逻辑
+    if (isNightNow && !openSleep && wakeTs && classifySleep(wakeTs) === 'night') {
+      if (heroCardEl) { heroCardEl.classList.add('sleeping'); heroCardEl.classList.remove('flipped'); }
+      document.getElementById('heroTime').textContent = '06:30 – 07:00';
+      document.getElementById('heroLabel').textContent = '夜觉进行中 · 预计晨醒区间';
+      document.getElementById('heroSubtitle').textContent = '夜间醒来已记录，再次入睡不触发第一觉';
+      document.getElementById('heroProgressFill').style.width = '30%';
+      document.getElementById('heroProgressText').textContent = '夜间睡眠 · 夜醒已记录，06:30 前可再次入睡';
+      const b = document.getElementById('heroBackBody');
+      if (b) b.innerHTML = '<b>夜觉 NIGHT_SLEEP</b><br>当前处于夜间睡眠区间<br>已记录夜醒，06:30 前再次入睡不触发第一觉<br>预计晨醒区间：<b>06:30 – 07:00</b>';
+      return;
+    }
+
     if (!openSleep && !wakeTs) {
       document.getElementById('heroTime').textContent = '--:--';
       document.getElementById('heroLabel').textContent = '等待首次记录';
@@ -3902,9 +3956,21 @@ function dismissInstallGuide(){
 
     if (heroCardEl) heroCardEl.classList.remove('sleeping');
     const napIdx = napN;
+    // v3.5.1 Fix #3：refTs 若处于夜间（≥19:00 或 <06:30），napIdx=0 也应走夜觉逻辑而非白天第一觉
+    const refTs = wakeTs || nowTs;
+    if (napIdx === 0 && refTs && classifySleep(refTs) === 'night') {
+      if (heroCardEl) { heroCardEl.classList.add('sleeping'); heroCardEl.classList.remove('flipped'); }
+      document.getElementById('heroTime').textContent = '06:30 – 07:00';
+      document.getElementById('heroLabel').textContent = '夜觉进行中 · 预计晨醒区间';
+      document.getElementById('heroSubtitle').textContent = '夜醒已记录，再次入睡即可，06:30 前不触发第一觉';
+      document.getElementById('heroProgressFill').style.width = '30%';
+      document.getElementById('heroProgressText').textContent = '夜间睡眠 · 夜醒已记录';
+      const b = document.getElementById('heroBackBody');
+      if (b) b.innerHTML = '<b>夜觉 NIGHT_SLEEP</b><br>当前处于夜间睡眠区间<br>已记录夜醒，06:30 前再次入睡不触发第一觉<br>预计晨醒区间：<b>06:30 – 07:00</b>';
+      return;
+    }
     const wwTable = [[75,90],[90,105],[90,105],[90,105],[105,105]];
     const [lo, hi] = wwTable[Math.min(napIdx, 4)];
-    const refTs = wakeTs || nowTs;
     const refLabel = wakeRef ? (wakeRef.title || '上次醒来') : '当前时间';
     const earliest = new Date(refTs + lo*60000);
     const latest = new Date(refTs + hi*60000);
@@ -4242,13 +4308,24 @@ function dismissInstallGuide(){
       return formatDurationText(ev.ts - start.ts);
     }
     // 睡眠：nap_start + nap_end（按归档逻辑取到次日晨醒）
+    // v3.5.1 Fix #5：sessionId 匹配失败时回退到时间顺序遍历配对
     if (type === 'nap_start' || type === 'nap') {
-      const end = events_all.find(e => e.type === 'nap_end' && e.sessionId === ev.sessionId);
+      let end = events_all.find(e => e.type === 'nap_end' && e.sessionId === ev.sessionId);
+      if (!end) {
+        // 回退：找到时间上紧随其后的 nap_end
+        const sortedEnds = events_all.filter(e => e.type === 'nap_end' && e.ts > ev.ts).sort((a,b) => a.ts - b.ts);
+        end = sortedEnds[0] || null;
+      }
       if (!end) return null;
       return formatDurationText(end.ts - ev.ts);
     }
     if (type === 'nap_end') {
-      const start = events_all.find(e => e.type === 'nap_start' && e.sessionId === ev.sessionId);
+      let start = events_all.find(e => e.type === 'nap_start' && e.sessionId === ev.sessionId);
+      if (!start) {
+        // 回退：找到时间上紧邻之前的 nap_start
+        const sortedStarts = events_all.filter(e => e.type === 'nap_start' && e.ts < ev.ts).sort((a,b) => b.ts - a.ts);
+        start = sortedStarts[0] || null;
+      }
       if (!start) return null;
       return formatDurationText(ev.ts - start.ts);
     }
@@ -4778,7 +4855,11 @@ function dismissInstallGuide(){
       setChromeVisible(false);
       return;
     }
-    // 已配置：轮询 isSignedIn，避免闪现登录屏
+    // 已配置：轮询 isSignedIn，避免闪现登录屏。
+    // v3.5.1 Fix #1：若本地已有 babysleep_token（曾登录成功），延长超时给 restoreSession 更多时间；
+    // 期间显示无交互的加载状态而非登录页，避免 iOS PWA 密码管理器检测到可见密码字段弹窗。
+    const hasToken = !!localStorage.getItem('babysleep_token');
+    const pollTimeout = hasToken ? 5000 : 1200;
     let elapsed = 0;
     const probe = () => {
       if (window.CloudSync && window.CloudSync.isSignedIn && window.CloudSync.isSignedIn()) {
@@ -4787,8 +4868,8 @@ function dismissInstallGuide(){
         window.BabySleepApp?.afterLogin?.();
         return;
       }
-      if (elapsed >= 1200) {
-        // 仍未登录：强制门控（隐藏本地模式出口）
+      if (elapsed >= pollTimeout) {
+        // 超时仍未登录：强制门控（隐藏本地模式出口）
         showPage('login');
         setChromeVisible(false);
         return;
@@ -5308,8 +5389,8 @@ function dismissInstallGuide(){
     }
 
     if (idEl) { idEl.value = target.id; }
-    if (pwEl && remember) { pwEl.value = target.pw || ''; }
-    if (pwEl && !remember) { pwEl.value = ''; }
+    if (pwEl && remember) { pwEl.value = target.pw || ''; pwEl.blur(); }
+    if (pwEl && !remember) { pwEl.value = ''; pwEl.blur(); }
     if (selEl) { selEl.value = target.id; }
   }
 
@@ -6327,6 +6408,39 @@ function dismissInstallGuide(){
     carousel.addEventListener('touchstart', (e) => { startX = e.touches[0].pageX; scrollLeft = carousel.scrollLeft; }, { passive: true });
     carousel.addEventListener('touchmove', (e) => { const x = e.touches[0].pageX; carousel.scrollLeft = scrollLeft - (x - startX) * 1.5; }, { passive: true });
     carousel.style.cursor = 'grab';
+  })();
+
+  // ============ 主页左右滑动切换日期 (v3.5.1 Fix #2) ============
+  (function() {
+    const tl = document.getElementById('pageTimeline');
+    if (!tl) return;
+    let swipeStartX = 0, swipeStartY = 0;
+    tl.addEventListener('touchstart', function(e) {
+      // 触摸起点在日期轮播内则不处理，避免与轮播滚动冲突
+      if (e.target.closest('.date-carousel')) return;
+      swipeStartX = e.touches[0].pageX;
+      swipeStartY = e.touches[0].pageY;
+    }, { passive: true });
+    tl.addEventListener('touchend', function(e) {
+      if (!swipeStartX) return;
+      const dx = e.changedTouches[0].pageX - swipeStartX;
+      const dy = e.changedTouches[0].pageY - swipeStartY;
+      swipeStartX = 0;
+      // 仅水平主导且距离 > 60px 时触发
+      if (Math.abs(dx) <= Math.abs(dy)) return;
+      if (Math.abs(dx) < 60) return;
+      const next = new Date(selectedDate);
+      if (dx < 0) next.setDate(next.getDate() + 1);  // 左滑 → 下一天
+      else next.setDate(next.getDate() - 1);          // 右滑 → 上一天
+      selectDate(next);
+      // 过渡动画
+      const tlEl = document.getElementById('pageTimeline');
+      if (tlEl) {
+        tlEl.classList.remove('swipe-in-left', 'swipe-in-right');
+        void tlEl.offsetWidth;
+        tlEl.classList.add(dx < 0 ? 'swipe-in-left' : 'swipe-in-right');
+      }
+    }, { passive: true });
   })();
 
   window.BabySleepApp = {
