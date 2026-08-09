@@ -2100,7 +2100,7 @@ function dismissInstallGuide(){
 
           <div class="form-field">
             <div class="form-label">ID数字号</div>
-            <input class="form-input" id="loginFamilyId" type="text" placeholder="输入6位数字ID" inputmode="numeric" autocomplete="username" autocapitalize="none" oninput="refreshLoginMode()" onblur="refreshLoginMode()">
+            <input class="form-input" id="loginFamilyId" type="text" placeholder="输入6位数字ID" inputmode="text" autocomplete="username" autocapitalize="none" oninput="refreshLoginMode()" onblur="refreshLoginMode()">
           </div>
           <div class="form-field" style="margin-bottom:8px;">
             <div class="form-label">密码</div>
@@ -3911,7 +3911,7 @@ function dismissInstallGuide(){
         function updatePrediction() {
     const now = new Date(), nowTs = now.getTime(), nowH = now.getHours();
     const heroCardEl = document.getElementById('heroCard');
-    if (heroCardEl) { heroCardEl.classList.remove('sleeping'); heroCardEl.classList.remove('flipped'); }
+    if (heroCardEl) { heroCardEl.classList.remove('sleeping'); heroCardEl.classList.remove('flipped'); heroCardEl.style.background = ''; }
     // v3.5.0：训练参数统一走 getTrainingPlan()。bufferDays=0 时下面两行的取值与 v3.4.2 完全等价。
     const plan = getTrainingPlan();
     const trainDay = Math.max(1, plan.dayIndexOf(now));
@@ -3940,7 +3940,7 @@ function dismissInstallGuide(){
     const napN = dayPairs.length;
     document.getElementById('sumTotalSleep').textContent = totalMin>=60 ? Math.floor(totalMin/60)+'h'+(totalMin%60)+'m' : totalMin+'m';
     document.getElementById('sumNapCount').textContent = napN + '/4' + (nightPairs.length>0?' +夜':'');
-    document.getElementById('sumCryCount').textContent = todayEv.filter(e=>e.type==='CRY_START'||e.type==='CRY_END').length;
+    document.getElementById('sumCryCount').textContent = todayEv.filter(e=>e.type==='CRY_START').length;
     document.getElementById('sumFeedCount').textContent = todayEv.filter(e=>e.type==='FEED').length;
     document.getElementById('sumSootheCount').textContent = todayEv.filter(e=>e.type==='SOOTHE').length;
 
@@ -4050,6 +4050,18 @@ function dismissInstallGuide(){
     else if (nowTs >= windDown.getTime() && nowTs < earliest.getTime()) winState = 'WIND_DOWN';
     const napNames = ['第一觉 NAP_1','第二觉 NAP_2','第三觉 NAP_3','黄昏觉 CATNAP','夜觉 BEDTIME'];
     const napName = napNames[Math.min(napIdx, 4)];
+    // v3.6.0 Bug #2：夜觉超时后卡片显示错误时间区间 — 当 napIdx>=4 且推荐入睡时间已过，覆盖为超时提示
+    if (napIdx >= 4 && nowTs > latest.getTime()) {
+      if (heroCardEl) { heroCardEl.style.background = 'linear-gradient(135deg,#E85D75,#FF8A80)'; }
+      document.getElementById('heroLabel').textContent = '预计入睡时间';
+      document.getElementById('heroTime').textContent = ft(earliest);
+      document.getElementById('heroSubtitle').textContent = '已超过推荐入睡区间 · 建议尽快入睡';
+      document.getElementById('heroProgressFill').style.width = '100%';
+      document.getElementById('heroProgressText').textContent = '建议尽快开始夜间睡眠';
+      const back = document.getElementById('heroBackBody');
+      if (back) back.innerHTML = '<b>'+napName+'</b><br>参考事件：'+refLabel+' '+ft(refTs)+'<br>醒窗：'+lo+'–'+hi+' 分钟<br>入睡区间：<b>'+ft(earliest)+' – '+ft(latest)+'</b><br>状态：<b style=\"color:#E85D75\">已超过推荐入睡区间</b><br>建议尽快入睡';
+      return;
+    }
     document.getElementById('heroLabel').textContent = napIdx <= 3 ? (napIdx===0?'第一觉入睡区间':'下一觉入睡区间') : '晚间入睡区间';
     document.getElementById('heroTime').textContent = ft(earliest) + ' – ' + ft(latest);
     const sub = [napName, refLabel+'：'+ft(refTs), '醒窗 '+lo+'–'+hi+'min'];
@@ -5154,7 +5166,7 @@ function dismissInstallGuide(){
       });
       const sleepStarts = dayEvents.filter(isSleepStart);
       const ritualStarts = dayEvents.filter(event => event.type === 'ROUTINE_START');
-      const cries = dayEvents.filter(event => event.type === 'CRY_START' || event.type === 'CRY_END');
+      const cries = dayEvents.filter(event => event.type === 'CRY_START');
       dailyStats.push({
         date, hasData:dayEvents.length>0, eventCount:dayEvents.length,
         daySleep:dayPairs.reduce((sum,pair)=>sum+pair.duration,0),
