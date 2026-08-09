@@ -2053,8 +2053,8 @@
   <button onclick="dismissInstallGuide()">我知道了</button>
 </div>
 
-<script src="./config.js?v=3.5.0"></script>
-<script src="./app-sync.js?v=3.5.0"></script>
+<script src="./config.js?v=3.6.0"></script>
+<script src="./app-sync.js?v=3.6.0"></script>
 <script>
 (function(){
   var ua=navigator.userAgent;
@@ -2543,12 +2543,22 @@ function dismissInstallGuide(){
           </div>
           <span class="chevron">›</span>
         </div>
+        <div class="settings-row settings-row-clickable" onclick="shareAppLink()">
+          <div class="settings-row-left">
+            <div class="settings-icon" style="background:rgba(79,209,197,0.15);color:#14B8A6">🔗</div>
+            <div>
+              <div class="settings-label">分享网页链接</div>
+              <div class="settings-value">复制链接发送给家人</div>
+            </div>
+          </div>
+          <span class="chevron">›</span>
+        </div>
         <div class="settings-row settings-row-clickable" onclick="showAbout()">
           <div class="settings-row-left">
             <div class="settings-icon" style="background:rgba(26,26,26,0.1);color:var(--text-primary)">ℹ️</div>
             <div>
               <div class="settings-label">关于</div>
-              <div class="settings-value">v3.5.0 · 家庭协作版</div>
+              <div class="settings-value">v3.6.0 · 家庭协作版</div>
             </div>
           </div>
           <span class="chevron">›</span>
@@ -3948,7 +3958,7 @@ function dismissInstallGuide(){
     const morningEv = todayEv.filter(e => (e.type==='SLEEP' && e.title==='起床')).sort((a,b)=>a.ts-b.ts)[0];
     const morningTs = morningEv ? morningEv.ts : null;
     let wakeRef = null, wakeTs = null;
-    const cands = todayEv.filter(e => e.type==='PUTDOWN' || (e.type==='WAKE' && classifySleep(e.ts) === 'day')).sort((a,b)=>b.ts-a.ts);
+    const cands = todayEv.filter(e => e.type==='WAKE' && classifySleep(e.ts) === 'day').sort((a,b)=>b.ts-a.ts);
     if (cands.length) { wakeRef = cands[0]; wakeTs = cands[0].ts; }
 
     // 夜间睡眠中：不触发第一觉预测
@@ -4050,16 +4060,21 @@ function dismissInstallGuide(){
     else if (nowTs >= windDown.getTime() && nowTs < earliest.getTime()) winState = 'WIND_DOWN';
     const napNames = ['第一觉 NAP_1','第二觉 NAP_2','第三觉 NAP_3','黄昏觉 CATNAP','夜觉 BEDTIME'];
     const napName = napNames[Math.min(napIdx, 4)];
-    // v3.6.0 Bug #2：夜觉超时后卡片显示错误时间区间 — 当 napIdx>=4 且推荐入睡时间已过，覆盖为超时提示
-    if (napIdx >= 4 && nowTs > latest.getTime()) {
-      if (heroCardEl) { heroCardEl.style.background = 'linear-gradient(135deg,#E85D75,#FF8A80)'; }
-      document.getElementById('heroLabel').textContent = '预计入睡时间';
-      document.getElementById('heroTime').textContent = ft(earliest);
-      document.getElementById('heroSubtitle').textContent = '已超过推荐入睡区间 · 建议尽快入睡';
-      document.getElementById('heroProgressFill').style.width = '100%';
-      document.getElementById('heroProgressText').textContent = '建议尽快开始夜间睡眠';
+    // 夜觉：固定晨醒区间，不动态计算入睡时间
+    if (napIdx >= 4) {
+      if (heroCardEl) { heroCardEl.classList.add('sleeping'); heroCardEl.classList.remove('flipped'); heroCardEl.style.background = ''; }
+      document.getElementById('heroTime').textContent = '06:30 – 07:00';
+      document.getElementById('heroLabel').textContent = '夜觉 · 预计晨醒区间';
+      const nightPivot = new Date(refTs); nightPivot.setHours(20, 0, 0, 0);
+      const isLate = nowTs > nightPivot.getTime();
+      document.getElementById('heroSubtitle').textContent = isLate
+        ? '已超过推荐入睡时间 · 建议尽快入睡'
+        : '晚间入睡 19:00–20:00 · 预计晨醒 06:30–07:00';
+      document.getElementById('heroProgressFill').style.width = isLate ? '100%' : '30%';
+      document.getElementById('heroProgressText').textContent = isLate ? '建议尽快开始夜间睡眠' : '近期记录日间小觉有助于预测';
+      if (heroCardEl && isLate) heroCardEl.style.background = 'linear-gradient(135deg,#E85D75,#FF8A80)';
       const back = document.getElementById('heroBackBody');
-      if (back) back.innerHTML = '<b>'+napName+'</b><br>参考事件：'+refLabel+' '+ft(refTs)+'<br>醒窗：'+lo+'–'+hi+' 分钟<br>入睡区间：<b>'+ft(earliest)+' – '+ft(latest)+'</b><br>状态：<b style=\"color:#E85D75\">已超过推荐入睡区间</b><br>建议尽快入睡';
+      if (back) back.innerHTML = '<b>夜觉 NIGHT_SLEEP</b><br>晚间入睡区间：19:00–20:00<br>预计晨醒区间：<b>06:30 – 07:00</b>' + (isLate ? '<br><span style="color:#E85D75">⚠ 已超过推荐入睡时间</span>' : '');
       return;
     }
     document.getElementById('heroLabel').textContent = napIdx <= 3 ? (napIdx===0?'第一觉入睡区间':'下一觉入睡区间') : '晚间入睡区间';
@@ -6101,7 +6116,21 @@ function dismissInstallGuide(){
     document.getElementById('iosInstall').classList.add('show');
   };
   window.showAbout = function() {
-    alert('🌙 BabySleepTracker v3.5.0\n\n宝宝睡眠训练记录与家庭共享应用\n\n未配置云端时数据保存在当前浏览器；配置 Supabase 后可在家庭成员间同步，并保留本地离线缓存。\n\n睡眠建议不能替代儿科医生的医疗意见。');
+    alert('🌙 BabySleepTracker v3.6.0\n\n宝宝睡眠训练记录与家庭共享应用\n\n未配置云端时数据保存在当前浏览器；配置 Supabase 后可在家庭成员间同步，并保留本地离线缓存。\n\n睡眠建议不能替代儿科医生的医疗意见。');
+  };
+  window.shareAppLink = function() {
+    const url = window.location.href.split('?')[0];
+    if (navigator.share) {
+      navigator.share({ title: '小豆芽 · 宝宝睡眠记录', url: url }).catch(() => {});
+    } else if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(() => showToast('✅ 链接已复制，可发送给家人')).catch(() => showToast('⚠ 复制失败，请手动复制网址'));
+    } else {
+      const textarea = document.createElement('textarea');
+      textarea.value = url; textarea.style.position = 'fixed'; textarea.style.opacity = '0';
+      document.body.appendChild(textarea); textarea.select();
+      document.execCommand('copy'); document.body.removeChild(textarea);
+      showToast('✅ 链接已复制');
+    }
   };
 
   // ============ 数据导出/导入/清除 ============
