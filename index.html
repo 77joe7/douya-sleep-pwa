@@ -4953,7 +4953,7 @@ function dismissInstallGuide(){
     // v3.5.1 Fix #1：若本地已有 babysleep_token（曾登录成功），延长超时给 restoreSession 更多时间；
     // 期间显示无交互的加载状态而非登录页，避免 iOS PWA 密码管理器检测到可见密码字段弹窗。
     const hasToken = !!localStorage.getItem('babysleep_token');
-    const pollTimeout = hasToken ? 5000 : 1200;
+    const pollTimeout = hasToken ? 8000 : 1200;
     let elapsed = 0;
     const probe = () => {
       if (window.CloudSync && window.CloudSync.isSignedIn && window.CloudSync.isSignedIn()) {
@@ -4963,7 +4963,18 @@ function dismissInstallGuide(){
         return;
       }
       if (elapsed >= pollTimeout) {
-        // 超时仍未登录：强制门控（隐藏本地模式出口）
+        // 超时判定：有 token 但未登录 → 可能是离线恢复中
+        if (hasToken && window.__cloudOffline !== false) {
+          // 离线模式：放行 timeline，显示离线状态
+          showPage('timeline');
+          setChromeVisible(true);
+          showOfflineBanner('当前处于离线模式，数据保存在本地，联网后自动同步');
+          if (window.CloudSync && window.CloudSync.setStatus) {
+            window.CloudSync.setStatus('离线模式', 'offline');
+          }
+          return;
+        }
+        // 无 token 或 token 已被明确拒绝 → 登录屏
         showPage('login');
         setChromeVisible(false);
         return;
@@ -4974,6 +4985,40 @@ function dismissInstallGuide(){
     probe();
   }
   window.loginGate = loginGate;
+
+  /** v3.6.0：离线状态横幅 */
+  function showOfflineBanner(msg) {
+    var b = document.getElementById('offlineBanner');
+    if (!b) {
+      b = document.createElement('div');
+      b.id = 'offlineBanner';
+      b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#F97316;color:#fff;padding:8px 16px;font-size:13px;text-align:center;cursor:pointer;';
+      b.onclick = function() { this.style.display = 'none'; };
+      document.body.appendChild(b);
+    }
+    b.textContent = '⚠ ' + msg + ' （点击关闭）';
+    b.style.display = 'block';
+  }
+
+  function hideOfflineBanner() {
+    var b = document.getElementById('offlineBanner');
+    if (b) b.style.display = 'none';
+  }
+
+  // 网络恢复时隐藏离线横幅并重置离线标记
+  window.addEventListener('online', function() {
+    hideOfflineBanner();
+    window.__cloudOffline = false;
+    if (window.CloudSync && window.CloudSync.setStatus) {
+      window.CloudSync.setStatus('已同步', 'online');
+    }
+  });
+
+  window.addEventListener('offline', function() {
+    if (window.CloudSync && window.CloudSync.setStatus) {
+      window.CloudSync.setStatus('离线缓存');
+    }
+  });
 
   function switchTab(tabName) {
     if (currentPage === 'login') return;   // 登录屏激活时拦截 tab 切换

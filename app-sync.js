@@ -130,7 +130,7 @@
         '<br><b>数据保护：</b>每日自动备份已开启（应用更新不丢数据）';
     }
     if (accountSummary) accountSummary.textContent = (session.family_name || '宝宝之家') + ' · ' + (localIdentity === 'viewer' ? '查看者' : '编辑者') + ' · ' + localDisplay;
-    setStatus(navigator.onLine ? '已同步' : '离线缓存', navigator.onLine ? 'online' : '');
+    setStatus(window.__cloudOffline ? '离线缓存 · 等待重连' : (navigator.onLine ? '已同步' : '离线缓存'), window.__cloudOffline ? 'offline' : (navigator.onLine ? 'online' : ''));
   }
 
   // 状态机：toggle 活动（旧 v2.4 兼容，保留）
@@ -953,7 +953,29 @@
       return true;
     } catch (e) {
       session = old;
+      const msg = (e && e.message) || String(e || '');
+      const isNetworkError = msg.indexOf('Failed to fetch') !== -1
+          || msg.indexOf('NetworkError') !== -1
+          || msg.indexOf('Network request failed') !== -1
+          || msg.indexOf('Load failed') !== -1
+          || msg.indexOf('timeout') !== -1
+          || msg.indexOf('abort') !== -1;
+      if (isNetworkError) {
+        // 网络瞬断：保留 token，标记离线，让用户继续使用本地数据
+        setStatus('离线缓存 · 等待重连', 'offline');
+        window.__cloudOffline = true;
+        startPolling();  // 轮询会自动重试（runPoll 内有 navigator.onLine 短路，联网后生效）
+        // 从 localStorage 加载本地缓存数据，保证离线可用
+        const cachedEvents = getCachedEvents();
+        if (cachedEvents && app?.replaceEvents) app.replaceEvents(cachedEvents);
+        app?.afterLogin?.();
+        refreshAccountUI();
+        return 'offline';
+      }
+      // 真正的认证错误（token 过期/被撤销）才清 token
       localStorage.removeItem(LS_TOKEN);
+      setStatus('登录已过期，请重新登录');
+      window.__cloudOffline = false;
       return false;
     }
   }
@@ -971,6 +993,14 @@
     notify('已退出登录');
   }
 
+  // 离线兜底：从 localStorage 读取缓存的本地事件列表
+  function getCachedEvents() {
+    try {
+      const raw = localStorage.getItem('babysleep_events');
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+  }
+
   // 首次身份选择
   function checkFirstTimeIdentity() {
     const hinted = localStorage.getItem(LS_HINTED);
@@ -985,8 +1015,13 @@
     app = appBridge;
     refreshAccountUI();
     if (!configured) return;
-    restoreSession().then(ok => {
-      if (!ok) refreshAccountUI();
+    restoreSession().then(result => {
+      if (result === 'offline') {
+        // 网络离线但 token 有效：已通过 getCachedEvents 加载本地缓存
+        refreshAccountUI();
+      } else if (!result) {
+        refreshAccountUI();
+      }
     });
   }
 
@@ -1044,6 +1079,8 @@
     /** 云端 meta.baby.birth 是否非空 —— isOnboardingNeeded() 的唯一依据 */
     hasCloudConfig: () => cloudMetaHasConfig,
     /** 「清除全部数据」用：best-effort 置空云端 meta */
-    resetHouseholdConfig: () => resetHouseholdConfig()
+    resetHouseholdConfig: () => resetHouseholdConfig(),
+    /** v3.6.0：暴露 setStatus 供 index.html 离线门控设置持久状态 */
+    setStatus: (text, mode) => setStatus(text, mode)
   };
 })();
