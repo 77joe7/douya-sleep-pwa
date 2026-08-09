@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>小豆芽 · 宝宝睡眠 v3.5.0</title>
+<title>小豆芽 · 宝宝睡眠 v3.6.0</title>
 
 <!-- PWA -->
 <link rel="manifest" href="manifest.json">
@@ -1534,10 +1534,10 @@
 
   .quick-action-btn.feed, .quick-action-btn.feed-toggle     { background: linear-gradient(135deg, #7C6DD9, #A78BFA); }
   .quick-action-btn.cry, .quick-action-btn.cry-toggle       { background: linear-gradient(135deg, #E8739A, #F8A5C2); }
-  .quick-action-btn.nap-toggle                               { background: linear-gradient(135deg, #3B5FB5, #5B8DEF); }
-  .quick-action-btn.putdown-toggle                           { background: linear-gradient(135deg, #2CA7A1, #4FD1C5); }
-  .quick-action-btn.ritual-toggle                            { background: linear-gradient(135deg, #7C3AED, #A78BFA); color: white; }
-  .quick-action-btn.comfort-toggle                           { background: linear-gradient(135deg, #E86830, #FB923C); }
+  .quick-action-btn.sleep-toggle                             { background: linear-gradient(135deg, #3B5FB5, #5B8DEF); }
+  .quick-action-btn.pickup-toggle                            { background: linear-gradient(135deg, #2CA7A1, #4FD1C5); }
+  .quick-action-btn.routine-toggle                           { background: linear-gradient(135deg, #7C3AED, #A78BFA); color: white; }
+  .quick-action-btn.soothe-toggle                            { background: linear-gradient(135deg, #E86830, #FB923C); }
 
   .quick-action-counter { font-size: 10px; color: var(--text-secondary); margin-top: 2px; font-weight: 500; }
 
@@ -2990,23 +2990,23 @@ function dismissInstallGuide(){
       <div class="quick-actions" style="grid-template-columns: repeat(3,1fr); gap: 10px;">
         <div class="quick-action" data-toggle="feed">
           <div class="quick-action-btn feed-toggle" id="feedToggleBtn">🍼</div>
-          <div class="quick-action-label" id="feedToggleLabel">喂奶开始</div>
-          <div class="quick-action-status" id="feedStatus" style="display:none">已开始</div>
+          <div class="quick-action-label" id="feedToggleLabel">喂奶</div>
+          <div class="quick-action-status" id="feedStatus" style="display:none">今日 0 次</div>
         </div>
-        <div class="quick-action" data-toggle="ritual">
-          <div class="quick-action-btn ritual-toggle" id="ritualToggleBtn">📖</div>
-          <div class="quick-action-label" id="ritualToggleLabel">仪式开始</div>
-          <div class="quick-action-status" id="ritualStatus" style="display:none">已开始</div>
+        <div class="quick-action" data-toggle="routine">
+          <div class="quick-action-btn routine-toggle" id="routineToggleBtn">📖</div>
+          <div class="quick-action-label" id="routineToggleLabel">仪式开始</div>
+          <div class="quick-action-status" id="routineStatus" style="display:none">已开始</div>
         </div>
-        <div class="quick-action" data-toggle="putdown">
-          <div class="quick-action-btn putdown-toggle" id="putdownToggleBtn">🛏️</div>
-          <div class="quick-action-label" id="putdownToggleLabel">放下</div>
-          <div class="quick-action-status" id="putdownStatus" style="display:none">已开始</div>
+        <div class="quick-action" data-toggle="pickup">
+          <div class="quick-action-btn pickup-toggle" id="pickupToggleBtn">🛏️</div>
+          <div class="quick-action-label" id="pickupToggleLabel">抱起</div>
+          <div class="quick-action-status" id="pickupStatus" style="display:none">已开始</div>
         </div>
-        <div class="quick-action" data-toggle="nap">
-          <div class="quick-action-btn nap-toggle" id="napToggleBtn">😴</div>
-          <div class="quick-action-label" id="napToggleLabel">入睡</div>
-          <div class="quick-action-status" id="napStatus" style="display:none">已开始</div>
+        <div class="quick-action" data-toggle="sleep">
+          <div class="quick-action-btn sleep-toggle" id="sleepToggleBtn">😴</div>
+          <div class="quick-action-label" id="sleepToggleLabel">入睡</div>
+          <div class="quick-action-status" id="sleepStatus" style="display:none">已开始</div>
         </div>
         <div class="quick-action" data-toggle="cry">
           <div class="quick-action-btn cry-toggle" id="cryToggleBtn">😢</div>
@@ -3014,17 +3014,17 @@ function dismissInstallGuide(){
           <div class="quick-action-status" id="cryStatus" style="display:none">已开始</div>
         </div>
         <!-- 6. 安抚（每次点击=一次记录，可多次） -->
-        <div class="quick-action" data-toggle="comfort">
-          <div class="quick-action-btn comfort-toggle" id="comfortToggleBtn">🤗</div>
-          <div class="quick-action-label" id="comfortToggleLabel">安抚</div>
-          <div class="quick-action-status" id="comfortStatus" style="display:none">已记录</div>
+        <div class="quick-action" data-toggle="soothe">
+          <div class="quick-action-btn soothe-toggle" id="sootheToggleBtn">🤗</div>
+          <div class="quick-action-label" id="sootheToggleLabel">安抚</div>
+          <div class="quick-action-status" id="sootheStatus" style="display:none">今日 0 次</div>
         </div>
       </div>
 
       <div class="recent-action-hint" id="actionHint">
-        💡 <strong>状态记录：</strong>喂奶、仪式、放下、入睡和哭闹均为“开始⇄结束”<br>
-        🛡️ <strong>关闭也保留：</strong>开始时间立即保存，Safari 被关闭后再次打开仍可继续点“结束”<br>
-        📊 <strong>单击记录：</strong>安抚（每点一次 = 一次记录）
+        💡 <strong>Toggle 记录：</strong>入睡/醒来、抱起/放下、哭闹开始/结束、仪式开始/结束<br>
+        🛡️ <strong>关闭也保留：</strong>开始时间立即保存，Safari 被关闭后再次打开仍可继续点"结束"<br>
+        📊 <strong>单击记录：</strong>喂奶、安抚（每点一次 = 一次记录）
       </div>
     </div>
 
@@ -3038,10 +3038,10 @@ function dismissInstallGuide(){
       </div>
 
       <div id="eventDetailContent" style="font-size:14px;">
-        <div class="log-row"><span class="log-field-label">类型</span><span class="log-field-value" id="detailType">--</span></div>
+        <div class="log-row" id="detailTypeRow"><span class="log-field-label">类型</span><span class="log-field-value"><select id="detailTypeSelect" style="border:1.5px solid rgba(26,26,26,0.1);border-radius:10px;padding:6px 10px;font-size:14px;background:var(--card);width:100%;"></select></span></div>
         <div class="log-row"><span class="log-field-label">日期</span><span class="log-field-value" id="detailDateDisplay" onclick="openDatePicker()" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(26,26,26,0.03);border-radius:10px;min-height:40px;"><span id="detailDateText" style="color:var(--text-primary);font-size:14px;">--</span><span style="color:var(--text-tertiary);font-size:12px;">📅</span><input type="hidden" id="detailDate"></span></div>
         <div class="log-row"><span class="log-field-label">时间</span><span class="log-field-value" id="detailTimeDisplay" onclick="openTimePicker()" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(26,26,26,0.03);border-radius:10px;min-height:40px;"><span id="detailTimeText" style="color:var(--text-primary);font-size:14px;">--</span><span style="color:var(--text-tertiary);font-size:12px;">🕐</span><input type="hidden" id="detailTime"></span></div>
-        <div class="log-row"><span class="log-field-label">持续</span><span class="log-field-value" id="detailDuration" style="font-weight:600;color:#4F7FD9;">--</span></div>
+        <div class="log-row" id="detailDurationRow"><span class="log-field-label">持续</span><span class="log-field-value" id="detailDuration" style="font-weight:600;color:#4F7FD9;">--</span></div>
         <div class="log-row" id="detailIntensityRow"><span class="log-field-label">强度</span><span class="log-field-value"><select id="detailIntensity" style="border:1.5px solid rgba(26,26,26,0.1);border-radius:10px;padding:6px 10px;font-size:14px;background:var(--card);width:100%;"><option value="">--</option><option value="1">😐 轻微</option><option value="2">😣 中等</option><option value="3">😫 强烈</option></select></span></div>
         <div class="log-row"><span class="log-field-label">备注</span><span class="log-field-value"><textarea class="log-field-entry" id="detailNote" placeholder="添加备注…" rows="2" style="resize:vertical;min-height:44px;font-size:14px;font-family:inherit;"></textarea></span></div>
         <div id="detailExtra"></div>
@@ -3192,13 +3192,21 @@ function dismissInstallGuide(){
    * 这些行回灌到本地后必须按 type 反推名称，否则整条时间轴会退化成一片「记录」。
    */
   const TYPE_TITLE_MAP = {
-    nap_start: '入睡',        nap_end: '醒来',        nap_record: '小觉',        nap: '小觉',
-    feed_start: '喂奶开始',   feed_end: '喂奶结束',   feed_record: '喂养',       feed: '喂养',
-    cry_start: '哭闹开始',    cry_end: '哭闹结束',    cry_record: '哭闹',        cry: '哭闹',
-    ritual_start: '仪式开始', ritual_end: '仪式结束', ritual_record: '睡眠仪式', ritual: '睡眠仪式',
-    putdown_start: '放下',    putdown_end: '抱起',    putdown_record: '放下',    putdown: '放下',
-    comfort_start: '安抚',    comfort_end: '安抚',    comfort_record: '安抚',    comfort: '安抚',
-    soothe_start: '安抚',     soothe_end: '安抚',     soothe_record: '安抚',     soothe: '安抚'
+    // v3.6.0 新版事件类型
+    SLEEP: '入睡',          WAKE: '醒来',
+    FEED: '喂奶',
+    SOOTHE: '安抚',
+    CRY_START: '哭闹开始',   CRY_END: '哭闹结束',
+    PICKUP: '抱起',          PUTDOWN: '放下',
+    ROUTINE_START: '仪式开始', ROUTINE_END: '仪式结束',
+    // 旧版兼容映射（normalizeEvent 自动迁移）
+    nap_start: '入睡',       nap_end: '醒来',        nap_record: '小觉',       nap: '小觉',
+    feed_start: '喂奶',     feed_end: '喂奶结束',    feed_record: '喂奶',      feed: '喂奶',
+    cry_start: '哭闹开始',   cry_end: '哭闹结束',     cry_record: '哭闹',       cry: '哭闹',
+    ritual_start: '仪式开始', ritual_end: '仪式结束',  ritual_record: '仪式',    ritual: '仪式',
+    putdown_start: '放下',   putdown_end: '抱起',     putdown_record: '放下',   putdown: '放下',
+    comfort_start: '安抚',   comfort_end: '安抚',     comfort_record: '安抚',   comfort: '安抚',
+    soothe_start: '安抚',    soothe_end: '安抚',      soothe_record: '安抚',    soothe: '安抚'
   };
 
   /**
@@ -3298,14 +3306,36 @@ function dismissInstallGuide(){
     const ts = toTimestamp(event.ts);
     if (!Number.isFinite(ts)) return null;
     const normalized = { ...event, ts };
+
+    // v3.6.0: 旧 type → 新 type 自动迁移
+    const TYPE_MIGRATION = {
+      'nap_start': 'SLEEP',      'nap_end': 'WAKE',
+      'nap_record': 'SLEEP',     'nap': 'SLEEP',
+      'feed_start': 'FEED',     'feed_end': 'FEED',
+      'feed_record': 'FEED',     'feed': 'FEED',
+      'cry_start': 'CRY_START', 'cry_end': 'CRY_END',
+      'cry_record': 'CRY_START', 'cry': 'CRY_START',
+      'ritual_start': 'ROUTINE_START', 'ritual_end': 'ROUTINE_END',
+      'ritual_record': 'ROUTINE_START', 'ritual': 'ROUTINE_START',
+      'putdown_start': 'PUTDOWN', 'putdown_end': 'PICKUP',
+      'putdown_record': 'PUTDOWN', 'putdown': 'PUTDOWN',
+      'comfort_start': 'SOOTHE', 'comfort_end': 'SOOTHE',
+      'comfort_record': 'SOOTHE', 'comfort': 'SOOTHE',
+      'soothe_start': 'SOOTHE', 'soothe_end': 'SOOTHE',
+      'soothe_record': 'SOOTHE', 'soothe': 'SOOTHE'
+    };
+    if (TYPE_MIGRATION[normalized.type]) {
+      normalized.type = TYPE_MIGRATION[normalized.type];
+      // 清除旧字段
+      if (normalized.sessionId !== undefined) delete normalized.sessionId;
+      if (normalized.pairId !== undefined) delete normalized.pairId;
+      if (normalized.status !== undefined) delete normalized.status;
+      if (normalized.activityKey !== undefined) delete normalized.activityKey;
+    }
+
     normalized.id = String(normalized.id || ('e' + ts + Math.random().toString(36).slice(2, 7)));
-    // v3.4.1 Bug B：time 始终由 ts 派生，保证「时间轴显示的时间」与「排序/归日所用的 ts」永不脱节
     normalized.time = new Date(ts).toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'});
-    // v3.4.2 Bug A：title 缺失/为通用占位时按 type 推断语义名称，最后才退化成「记录」。
-    // normalizeEvent 是所有入库路径（本地新增 / localStorage 读取 / 云端回灌 / 导入）的唯一收口。
     normalized.title = resolveEventTitle(normalized);
-    // detail 仅在「事件本身没有 detail 字段」时才从 payload 回填。
-    // 不能用 `||` 兜底：那会让用户主动清空的备注被 payload 里的旧值复活。
     const payload = (normalized.payload && typeof normalized.payload === 'object') ? normalized.payload : {};
     const hasOwnDetail = normalized.detail !== undefined && normalized.detail !== null;
     normalized.detail = hasOwnDetail ? cleanText(normalized.detail) : cleanText(payload.detail);
@@ -3431,128 +3461,129 @@ function dismissInstallGuide(){
   }
 
   let currentDetailEventId = null;
-  let pendingCryDurationText = '';
 
-  // ============ 通用 Toggle 系统 ============
+  // ============ 通用 Toggle 系统（v3.6.0 重构） ============
+  // 事件组定义：
+  //   pickup:  PICKUP / PUTDOWN   (Toggle, ❌时长)
+  //   sleep:   SLEEP / WAKE       (Toggle, ✅时长)
+  //   feed:    FEED               (单次, ❌时长)
+  //   soothe:  SOOTHE             (单次, ❌时长)
+  //   cry:     CRY_START / CRY_END (Toggle, ✅时长, ✅强度)
+  //   routine: ROUTINE_START / ROUTINE_END (Toggle, ✅时长)
   const toggles = {
-    feed:   { active: false, startTime: null, sessionId:null, labelOn: '喂奶开始', labelOff: '喂奶结束', iconOn: '🍼', iconOff: '🍼', startToast: '🍼 喂奶开始时间已保存', endToast: '🍼 喂奶已结束', prefix: 'feed' },
-    ritual: { active: false, startTime: null, sessionId:null, labelOn: '仪式开始', labelOff: '仪式结束', iconOn: '📚', iconOff: '📚', startToast: '📚 仪式开始时间已保存', endToast: '📚 仪式结束已记录', prefix: 'ritual' },
-    putdown:{ active: false, startTime: null, sessionId:null, labelOn: '放下', labelOff: '抱起', iconOn: '🛏️', iconOff: '🛏️', startToast: '🛏️ 放下时间已保存', endToast: '🛏️ 抱起已记录', prefix: 'putdown' },
-    nap:    { active: false, startTime: null, sessionId:null, labelOn: '入睡', labelOff: '醒来', iconOn: '🌙', iconOff: '🌙', startToast: '🌙 入睡时间已保存', endToast: '🌙 醒来已记录', prefix: 'nap' },
-    cry:    { active: false, startTime: null, sessionId:null, labelOn: '哭闹开始', labelOff: '哭闹结束', iconOn: '🥺', iconOff: '🥺', startToast: '🥺 哭闹开始时间已保存', endToast: null, prefix: 'cry' },
-    comfort:{ active: false, startTime: null, sessionId:null, labelOn: '安抚', labelOff: '安抚', iconOn: '🤗', iconOff: '🤗', startToast: '🤗 安抚已记录', endToast: null, prefix: 'comfort', singleEvent: true }
+    pickup:  { labelOn: '抱起',   labelOff: '放下',  iconOn: '🤱', iconOff: '🛏️', startToast: '🤱 抱起时间已保存', endToast: '🛏️ 放下已记录', group: 'pickup', requiresDuration: false },
+    sleep:   { labelOn: '入睡',   labelOff: '醒来',  iconOn: '😴', iconOff: '🌅', startToast: '😴 入睡时间已保存', endToast: '🌅 醒来已记录', group: 'sleep', requiresDuration: true },
+    feed:    { labelOn: '喂奶',   labelOff: '喂奶',  iconOn: '🍼', iconOff: '🍼', startToast: '🍼 喂奶已记录',   endToast: null,                 group: 'feed', singleEvent: true },
+    soothe:  { labelOn: '安抚',   labelOff: '安抚',  iconOn: '🤗', iconOff: '🤗', startToast: '🤗 安抚已记录',   endToast: null,                 group: 'soothe', singleEvent: true },
+    cry:     { labelOn: '哭闹开始', labelOff: '哭闹结束', iconOn: '😢', iconOff: '😢', startToast: null,          endToast: '😢 哭闹结束已记录',  group: 'cry', requiresDuration: true },
+    routine: { labelOn: '仪式开始', labelOff: '仪式结束', iconOn: '📖', iconOff: '📖', startToast: '📖 仪式开始时间已保存', endToast: '📖 仪式结束已记录', group: 'routine', requiresDuration: true }
   };
 
   function getToggle(key) { return toggles[key]; }
 
   function restoreToggleStates() {
-    Object.keys(toggles).forEach(key => {
-      const startType = key === 'cry' ? 'cry_start' : key + '_start';
-      const endTypes = key === 'cry' ? ['cry', 'cry_end'] : [key + '_end'];
-      const starts = events.filter(event => isValidEvent(event) && event.type === startType && (key !== 'nap' || isSleepStart(event))).sort((a,b) => b.ts-a.ts);
-      const ends = events.filter(event => isValidEvent(event) && endTypes.includes(event.type)).sort((a,b) => b.ts-a.ts);
-      const lastStart = starts[0];
-      const lastEnd = ends[0];
-      if (lastStart && (!lastEnd || lastStart.ts > lastEnd.ts)) {
-        lastStart.status = 'active';
-        lastStart.activityKey = key;
-        lastStart.sessionId = lastStart.sessionId || lastStart.id;
-        toggles[key].active = true;
-        toggles[key].startTime = lastStart.ts;
-        toggles[key].sessionId = lastStart.sessionId || lastStart.id;
-      }
-    });
+    // v3.6.0: 按钮状态由各事件组最后一条记录的类型决定（按 timestamp 排序）
+    // 不再维护 toggles[key].active / startTime / sessionId
+    Object.keys(toggles).forEach(key => updateToggleUI(key));
   }
 
   function updateToggleUI(key) {
     const t = toggles[key];
+    if (!t) return;
     const btn = document.getElementById(key + 'ToggleBtn');
     const label = document.getElementById(key + 'ToggleLabel');
     const statusEl = document.getElementById(key + 'Status');
     if (!btn || !label) return;
 
-    // 安抚：始终保持可记录态
+    // 单次事件：始终显示 labelOn，状态显示今日次数
     if (t.singleEvent) {
       btn.classList.remove('toggle-active');
       label.textContent = t.labelOn;
       if (statusEl) {
+        const today = new Date();
+        const typeKey = key === 'feed' ? 'FEED' : 'SOOTHE';
+        const count = events.filter(e => isValidEvent(e) && isSameLocalDay(e.ts, today) && e.type === typeKey).length;
         statusEl.style.display = 'block';
-        statusEl.textContent = '最后 ' + new Date(t.startTime || Date.now()).toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'});
+        statusEl.textContent = '今日 ' + count + ' 次';
       }
       return;
     }
 
-    if (t.active) {
+    // Toggle 事件：按 timestamp 排序后取最后一条记录
+    const startType = t.group === 'cry' ? 'CRY_START' : t.group === 'sleep' ? 'SLEEP' : t.group === 'pickup' ? 'PICKUP' : 'ROUTINE_START';
+    const endType   = t.group === 'cry' ? 'CRY_END'   : t.group === 'sleep' ? 'WAKE'  : t.group === 'pickup' ? 'PUTDOWN' : 'ROUTINE_END';
+
+    const allOfGroup = events.filter(e => isValidEvent(e) && (e.type === startType || e.type === endType))
+      .sort((a, b) => a.timestamp !== undefined ? a.timestamp - b.timestamp : a.ts - b.ts);
+    const last = allOfGroup[allOfGroup.length - 1] || null;
+
+    // 最后一条是"开始型"或无记录 → 显示"开始"按钮
+    if (!last || last.type === endType) {
+      btn.classList.remove('toggle-active');
+      label.textContent = t.labelOn;
+      if (statusEl) statusEl.style.display = 'none';
+    } else {
+      // 最后一条是"开始型" → 显示"结束"按钮
       btn.classList.add('toggle-active');
       label.textContent = t.labelOff;
       if (statusEl) {
         statusEl.style.display = 'block';
-        statusEl.textContent = '开始于 ' + new Date(t.startTime).toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'});
+        statusEl.textContent = '开始于 ' + new Date(last.ts).toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'});
       }
-    } else {
-      btn.classList.remove('toggle-active');
-      label.textContent = t.labelOn;
-      if (statusEl) statusEl.style.display = 'none';
     }
   }
 
   function toggleAction(key) {
     const t = toggles[key];
+    if (!t) return;
     const ts = Date.now();
 
-    // 安抚：单次事件，不 toggle，允许多次点击
-    if (key === 'comfort' || t.singleEvent) {
-      t.startTime = ts; // 保留最后一次时间戳
-      const eventType = key + '_record';
-      addEvent({ type: eventType, title: t.labelOn, detail: '', ts, activityKey:key, status:'complete' });
+    // 单次事件（FEED / SOOTHE）：每次点击创建一个独立记录
+    if (t.singleEvent) {
+      const eventType = t.group === 'feed' ? 'FEED' : 'SOOTHE';
+      const added = addEvent({ type: eventType, title: t.labelOn, detail: '', ts });
+      if (added && t.startToast) showToast(t.startToast);
+      tryCallCloud(t.group, 'event', ts);
       updateToggleUI(key);
-      if (t.startToast) showToast(t.startToast);
-      tryCallCloud(key, 'event', ts);
       return;
     }
 
-    const op = t.active ? 'end' : 'start';
+    // Toggle 事件：判断当前应该创建"开始型"还是"结束型"
+    const startType = t.group === 'cry' ? 'CRY_START' : t.group === 'sleep' ? 'SLEEP' : t.group === 'pickup' ? 'PICKUP' : 'ROUTINE_START';
+    const endType   = t.group === 'cry' ? 'CRY_END'   : t.group === 'sleep' ? 'WAKE'  : t.group === 'pickup' ? 'PUTDOWN' : 'ROUTINE_END';
 
-    // 乐观更新：立即应用本地 UI（不等待云端）
-    if (!t.active) {
-      t.active = true;
-      t.startTime = ts;
-      const eventType = key === 'cry' ? 'cry_start' : (key + '_start');
-      const startedEvent = addEvent({ type: eventType, title: t.labelOn, detail: '', ts, activityKey:key, status:'active' });
-      t.sessionId = startedEvent.id;
-      if (startedEvent) startedEvent.sessionId = startedEvent.id;
-      updateToggleUI(key);
-      if (t.startToast) showToast(t.startToast);
-    } else {
-      t.active = false;
-      const elapsed = Math.max(0, Math.floor((Date.now() - t.startTime) / 1000));
-      const m = Math.floor(elapsed / 60), s = elapsed % 60;
-      const sessionId = t.sessionId;
-      const startEvent = events.find(event => event.id === sessionId);
-      if (startEvent) startEvent.status = 'closed';
-      updateToggleUI(key);
+    const allOfGroup = events.filter(e => isValidEvent(e) && (e.type === startType || e.type === endType))
+      .sort((a, b) => (a.timestamp !== undefined ? a.timestamp - b.timestamp : a.ts - b.ts));
+    const last = allOfGroup[allOfGroup.length - 1] || null;
 
+    // 判断该创建开始型还是结束型
+    const isStart = !last || last.type === endType;
+
+    if (isStart) {
+      // === 创建"开始型"记录 ===
       if (key === 'cry') {
-        pendingCryDurationText = m + '分钟' + (s ? s + '秒' : '');
-        document.getElementById('crySummary').innerHTML = '哭闹时长: <strong>' + m + ' 分钟 ' + s + ' 秒</strong>';
+        // 哭闹开始：关闭快速记录面板，弹出强度选择器
         closeQuickRecord();
-        setTimeout(openCryPicker, 300);
-        // bg sync
-        const typeMap2 = { nap: 'sleep' };
-        const ct2 = typeMap2[key] || key;
-        tryCallCloud(ct2, op, ts);
+        document.getElementById('cryPickerOverlay').classList.add('active');
+        // 预选强度3
+        document.querySelectorAll('.cry-intensity-btn').forEach(b => b.classList.remove('selected'));
+        const defBtn = document.querySelector('.cry-intensity-btn[data-intensity="3"]');
+        if (defBtn) defBtn.classList.add('selected');
+        document.querySelectorAll('.cry-tag').forEach(b => b.classList.remove('selected'));
         return;
       }
 
-      const eventType = key + '_end';
-      addEvent({ type: eventType, title: t.labelOff, detail: '', ts, activityKey:key, sessionId, status:'complete' });
-      if (t.endToast) showToast(t.endToast);
+      const added = addEvent({ type: startType, title: t.labelOn, detail: '', ts });
+      if (added && t.startToast) showToast(t.startToast);
+      tryCallCloud(t.group, 'start', ts);
+    } else {
+      // === 创建"结束型"记录 ===
+      const added = addEvent({ type: endType, title: t.labelOff, detail: '', ts });
+      if (added && t.endToast) showToast(t.endToast);
+      tryCallCloud(t.group, 'end', ts);
     }
 
-    // 后台异步同步云端状态机（失败/冲突静默处理）
-    const typeMap = { nap: 'sleep' };
-    const cloudType = typeMap[key] || key;
-    tryCallCloud(cloudType, op, ts);
+    updateToggleUI(key);
   }
 
   // 后台静默同步云端 toggle 状态；冲突时静默校正本地 UI
@@ -3560,7 +3591,6 @@ function dismissInstallGuide(){
     if (!window.CloudSync?.isSignedIn?.() || !navigator.onLine) return;
     window.CloudSync.appendActivityV2(cloudType, op, ts).then(result => {
       if (result && result.conflict) {
-        // 睡眠冲突：显示轻提示
         showToast('⚠️ ' + (result.conflict_msg || '宝宝已在睡眠中'));
         window.CloudSync.refreshActivityState?.();
       } else if (result && result.ignored && !result.conflict) {
@@ -3569,9 +3599,46 @@ function dismissInstallGuide(){
     }).catch(() => {});
   }
 
+  // ============ v3.6.0 全量重新配对算法 recalcDurations() ============
+  /**
+   * 清空所有事件的 duration，然后按 timestamp 排序后使用栈结构重新配对。
+   * duration 只写在"结束型"记录上。触发条件：任何增删改操作。
+   */
+  function recalcDurations() {
+    // 1. 清空所有 duration
+    events.forEach(e => { if (e.duration !== undefined) delete e.duration; });
+
+    /**
+     * 对一组 Toggle 事件类型执行栈配对：开始型入栈，结束型匹配最早未配对的开始型。
+     * @param {string} startType 开始型
+     * @param {string} endType 结束型
+     */
+    function pairGroup(startType, endType) {
+      const group = events.filter(e => isValidEvent(e) && (e.type === startType || e.type === endType))
+        .sort((a, b) => a.ts - b.ts);
+      const stack = []; // 待配对的"开始型"
+      for (const ev of group) {
+        if (ev.type === startType) {
+          stack.push(ev);
+        } else if (ev.type === endType && stack.length > 0) {
+          const start = stack.shift();
+          const dur = ev.ts - start.ts;
+          if (dur >= 0) ev.duration = dur;
+        }
+        // 未配对结束型或无开始型的结束型：duration 保持 undefined
+      }
+    }
+
+    // 2. 对需要计算时长的三组 Toggle 事件分别配对
+    pairGroup('SLEEP', 'WAKE');
+    pairGroup('CRY_START', 'CRY_END');
+    pairGroup('ROUTINE_START', 'ROUTINE_END');
+    // PICKUP/PUTDOWN 不计算时长，但确保 clean duration
+    // pairGroup is not called for PICKUP/PUTDOWN (no duration needed)
+  }
+
   function addEvent(evt) {
     // v3.4.1 Bug B：先确保 ts 合法（非法时回退到当前时间），再归一化；
-    // 归一并防御性过滤，确保绝不会把 null 推进 events（否则会导致后续整条时间轴渲染抛错而不刷新）。
     const ts = Number.isFinite(toTimestamp(evt.ts)) ? toTimestamp(evt.ts) : Date.now();
     const id = String(evt.id || ('e' + ts + Math.random().toString(36).slice(2, 7)));
     const recorder = window.CloudSync?.getRecorder?.() || null;
@@ -3586,10 +3653,10 @@ function dismissInstallGuide(){
     }
     events.push(added);
     events.sort((a, b) => a.ts - b.ts);
+    // v3.6.0: 增删改后触发全量重新配对
+    recalcDurations();
     saveEvents();
 
-    // v3.4.1 Bug B：若新记录落在非当前查看的日期（如跨 midnight、或用户在历史日浏览时补记），
-    // 自动切换到该记录所在的那一天，保证「快速记录后立即可见」，并给出轻提示。
     if (!isSameLocalDay(ts, selectedDate)) {
       selectDate(new Date(ts));
       showToast('📅 已跳转到记录所属日期');
@@ -3743,11 +3810,11 @@ function dismissInstallGuide(){
   }
 
   function isSleepStart(event) {
-    return event?.type === 'nap_start';
+    return event?.type === 'SLEEP';
   }
 
   function isSleepEnd(event) {
-    return event?.type === 'nap_end';
+    return event?.type === 'WAKE';
   }
 
   // 严格昼夜分类：≥19:00 或 <06:30 = 夜觉，06:30–18:59 = 白天小觉
@@ -3761,45 +3828,41 @@ function dismissInstallGuide(){
   }
 
   function getSleepPairsForDate(date) {
+    // v3.6.0: 基于 recalcDurations() 预计算的 duration 字段重建睡眠配对
     const bounds = dayBounds(date);
-    // v3.5.1 Fix #5：事件流遍历配对，替代原有按顺序映射的脆弱逻辑。
-    // 入睡事件限定当天范围，醒来事件取全量（入睡跨天时醒来可能在次日）。
-    const starts = events
-      .filter(e => isValidEvent(e) && isSleepStart(e) && e.ts >= bounds.start && e.ts < bounds.end)
+    // key: sleep_start_id → { start: SLEEP event, end: WAKE event (with duration), night: bool }
+    const sleepStarts = events
+      .filter(e => isValidEvent(e) && e.type === 'SLEEP' && e.ts >= bounds.start && e.ts < bounds.end)
       .sort((a, b) => a.ts - b.ts);
-    const ends = events
-      .filter(e => isValidEvent(e) && isSleepEnd(e))
+    const wakeEvents = events
+      .filter(e => isValidEvent(e) && e.type === 'WAKE')
       .sort((a, b) => a.ts - b.ts);
 
     // 合并为时间线，按时间序遍历
     const timeline = [];
-    for (const s of starts) timeline.push({ ev: s, isStart: true });
-    for (const e of ends)  timeline.push({ ev: e, isStart: false });
+    for (const s of sleepStarts) timeline.push({ ev: s, isStart: true });
+    for (const e of wakeEvents)  timeline.push({ ev: e, isStart: false });
     timeline.sort((a, b) => a.ev.ts - b.ev.ts);
 
     const pairs = [];
     const errors = [];
-    let pending = null; // { start, end }
+    let pending = null;
 
     for (const item of timeline) {
       const ev = item.ev;
       if (item.isStart) {
-        // 上一个入睡尚未配对就遇到新入睡 → 标记未完成
         if (pending && !pending.end) {
           pending.error = 'no_wake';
           pairs.push({ start: pending.start, end: null, duration: null, night: classifySleep(pending.start.ts) === 'night', error: 'no_wake' });
         }
         pending = { start: ev, end: null };
       } else {
-        // 醒来事件
         if (!pending) {
           errors.push({ type: 'consecutive_wake', event: ev });
-          console.warn('[sleepPairs] 连续醒来事件（无前导入睡）:', new Date(ev.ts).toISOString(), ev);
           continue;
         }
         if (pending.end) {
           errors.push({ type: 'consecutive_wake', event: ev });
-          console.warn('[sleepPairs] 连续醒来事件（重复醒来）:', new Date(ev.ts).toISOString(), ev);
           continue;
         }
         const classification = classifySleep(pending.start.ts);
@@ -3818,7 +3881,6 @@ function dismissInstallGuide(){
       }
     }
 
-    // 末尾未配对入睡
     if (pending) {
       pairs.push({ start: pending.start, end: null, duration: null, night: classifySleep(pending.start.ts) === 'night', error: null });
     }
@@ -3832,8 +3894,8 @@ function dismissInstallGuide(){
     const firstSleepStart = dayEvents.filter(event => isSleepStart(event) && classifySleep(event.ts) !== 'night').sort((a,b) => a.ts-b.ts)[0];
     return dayEvents
       .filter(event =>
-        ((event.type === 'nap_start' && event.title === '起床') ||
-        (event.type === 'putdown_end' && new Date(event.ts).getHours() < 10)) &&
+        ((event.type === 'SLEEP' && event.title === '起床') ||
+        (event.type === 'PUTDOWN' && new Date(event.ts).getHours() < 10)) &&
         (!firstSleepStart || event.ts < firstSleepStart.ts)
       )
       .sort((a, b) => b.ts - a.ts)[0] || null;
@@ -3878,15 +3940,15 @@ function dismissInstallGuide(){
     const napN = dayPairs.length;
     document.getElementById('sumTotalSleep').textContent = totalMin>=60 ? Math.floor(totalMin/60)+'h'+(totalMin%60)+'m' : totalMin+'m';
     document.getElementById('sumNapCount').textContent = napN + '/4' + (nightPairs.length>0?' +夜':'');
-    document.getElementById('sumCryCount').textContent = todayEv.filter(e=>e.type==='cry').length;
-    document.getElementById('sumFeedCount').textContent = todayEv.filter(e=>e.type==='feed_start').length;
-    document.getElementById('sumSootheCount').textContent = todayEv.filter(e=>e.type==='soothe'||e.type==='comfort_record').length;
+    document.getElementById('sumCryCount').textContent = todayEv.filter(e=>e.type==='CRY_START'||e.type==='CRY_END').length;
+    document.getElementById('sumFeedCount').textContent = todayEv.filter(e=>e.type==='FEED').length;
+    document.getElementById('sumSootheCount').textContent = todayEv.filter(e=>e.type==='SOOTHE').length;
 
     const openSleep = pairs.filter(p => !p.end).sort((a,b)=>b.start.ts-a.start.ts)[0];
-    const morningEv = todayEv.filter(e => (e.type==='nap_start' && e.title==='起床')).sort((a,b)=>a.ts-b.ts)[0];
+    const morningEv = todayEv.filter(e => (e.type==='SLEEP' && e.title==='起床')).sort((a,b)=>a.ts-b.ts)[0];
     const morningTs = morningEv ? morningEv.ts : null;
     let wakeRef = null, wakeTs = null;
-    const cands = todayEv.filter(e => e.type==='putdown_end' || (e.type==='nap_end' && classifySleep(e.ts) === 'day')).sort((a,b)=>b.ts-a.ts);
+    const cands = todayEv.filter(e => e.type==='PUTDOWN' || (e.type==='WAKE' && classifySleep(e.ts) === 'day')).sort((a,b)=>b.ts-a.ts);
     if (cands.length) { wakeRef = cands[0]; wakeTs = cands[0].ts; }
 
     // 夜间睡眠中：不触发第一觉预测
@@ -4177,22 +4239,23 @@ function dismissInstallGuide(){
 
   function eventCategory(e) {
     const t = String(e?.type || '');
-    if (t.startsWith('nap_')) return 'sleep';
-    if (t.startsWith('feed_') || t === 'feed') return 'feed';
-    if (t.startsWith('ritual_') || t.startsWith('putdown_') || t.startsWith('soothe') || t === 'soothe' || t.startsWith('comfort') || t === 'comfort') return 'routine';
-    if (t.startsWith('cry')) return 'cry';
+    if (t === 'SLEEP' || t === 'WAKE') return 'sleep';
+    if (t === 'FEED') return 'feed';
+    if (t.startsWith('ROUTINE_') || t === 'PICKUP' || t === 'PUTDOWN' || t === 'SOOTHE') return 'routine';
+    if (t.startsWith('CRY_')) return 'cry';
     return 'other';
   }
 
-  // v3.5.1: 时间轴图标按活动精细映射，与底部快速记录按钮的 emoji 一一对应
+  // v3.6.0: 时间轴图标按事件类型精细映射
   function iconForEvent(ev) {
     const t = String(ev?.type || '');
-    if (t.startsWith('putdown_')) return '🛏️';
-    if (t.startsWith('comfort') || t.startsWith('soothe') || t === 'soothe') return '🤗';
-    if (t.startsWith('ritual_')) return '📖';
-    if (t.startsWith('feed')) return '🍼';
-    if (t.startsWith('nap') || t.startsWith('sleep')) return '😴';
-    if (t.startsWith('cry')) return '😢';
+    if (t === 'PICKUP') return '🤱';
+    if (t === 'PUTDOWN') return '🛏️';
+    if (t === 'SOOTHE') return '🤗';
+    if (t.startsWith('ROUTINE_')) return '📖';
+    if (t === 'FEED') return '🍼';
+    if (t === 'SLEEP' || t === 'WAKE') return '😴';
+    if (t.startsWith('CRY_')) return '😢';
     return '📝';
   }
 
@@ -4245,38 +4308,32 @@ function dismissInstallGuide(){
 
     container.innerHTML = sorted.length ? sorted.map(function(ev) {
       var cat = eventCategory(ev);
-      // v3.4.1 Bug A：以稳定的事件 id 作为打开详情的凭据（而非数组下标），
-      // 即使后续增删导致下标漂移，也能可靠打开正确事件。
       var evId = String(ev.id);
       var s = catStyle[cat] || catStyle.other;
-      /* v3.5.1: 图标按活动精细映射，与快速记录按钮一致；颜色/背景保留 category 配色 */
       s = Object.assign({}, s, { icon: iconForEvent(ev) });
       var rec = ev.recorderName || ev.recorder_name;
       var role = ev.recorderRole || ev.recorder_role;
       var dur = computeDurationForEvent(ev);
-      /* 备注截断：超过20字显示前20字+省略号 */
+      // v3.6.0: 开始型无配对 → 显示"进行中"
+      var isStartUnpaired = (ev.type === 'SLEEP' || ev.type === 'CRY_START' || ev.type === 'ROUTINE_START') && (ev.duration === undefined || ev.duration === null);
+      if (isStartUnpaired && !dur) {
+        dur = '🔄 进行中';
+      }
       var detail = ev.detail || '';
       var shortDetail = detail.length > 20 ? detail.slice(0, 20) + '…' : detail;
-      /* 编辑者文字 */
       var recText = rec ? (role ? role + '·' : '') + rec : '';
 
       return '<div class="timeline-event" data-event-id="' + escapeHTML(evId) + '" role="button" tabindex="0">' +
-        /* 时间轴节点 */
         '<div class="tl-node ' + cat + '"></div>' +
-        /* 卡片内容 */
         '<div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;">' +
           '<div class="tl-dot-wrap" style="background:' + s.bg + ';width:34px;height:34px;border-radius:10px;display:grid;place-items:center;flex-shrink:0;">' +
             '<span class="tl-dot-icon" style="font-size:18px;">' + s.icon + '</span>' +
           '</div>' +
           '<div class="event-body" style="flex:1;min-width:0;">' +
-            /* 第一行：标题 + 时间 */
             '<div class="event-head">' +
-              /* v3.4.2 Bug A：标题四级兜底 —— 已归一化的 title → 按 type 推断 → 分类默认名 → 通用占位。
-                 即使有未经 normalizeEvent 的事件混入（如外部直接 push），也不会出现空标题。 */
               '<span class="event-title" style="font-size:14px;">' + escapeHTML(cleanText(ev.title) || inferTitleFromType(ev.type) || s.label || GENERIC_EVENT_TITLE) + '</span>' +
               '<span class="event-time" style="font-size:12px;">' + escapeHTML(ev.time || formatTimeInput(ev.ts)) + '</span>' +
             '</div>' +
-            /* 第二行：时长 + 备注(截断) + 编辑者 */
             ((dur || shortDetail || recText) ? (
               '<div class="event-meta-row">' +
                 '<div style="display:flex;align-items:center;gap:6px;flex:1;min-width:0;">' +
@@ -4307,81 +4364,23 @@ function dismissInstallGuide(){
   }
 
   function computeDurationForEvent(ev) {
+    // v3.6.0: duration 由 recalcDurations() 预计算并写在"结束型"记录上
     if (!ev) return null;
-    const events_all = events;
-    const type = ev.type;
-    // 喂奶：feed_start + 同 session_id 的 feed_end
-    if (type === 'feed_start' || type === 'feed') {
-      const end = type === 'feed_start' ? events_all.find(e => e.type === 'feed_end' && e.sessionId === ev.sessionId) : events_all.find(e => e.type === 'feed_end' && e.sessionId === ev.sessionId);
-      if (!end) return null;
-      return formatDurationText(end.ts - ev.ts);
+    // 如果事件本身有 duration（结束型记录），直接格式化
+    if (ev.duration !== undefined && ev.duration !== null) {
+      return formatDurationText(ev.duration);
     }
-    if (type === 'feed_end') {
-      const start = events_all.find(e => e.type === 'feed_start' && e.sessionId === ev.sessionId);
-      if (!start) return null;
-      return formatDurationText(ev.ts - start.ts);
-    }
-    // 睡眠：nap_start + nap_end（按归档逻辑取到次日晨醒）
-    // v3.5.1 Fix #5：sessionId 匹配失败时回退到时间顺序遍历配对
-    if (type === 'nap_start' || type === 'nap') {
-      let end = events_all.find(e => e.type === 'nap_end' && e.sessionId === ev.sessionId);
-      if (!end) {
-        // 回退：找到时间上紧随其后的 nap_end
-        const sortedEnds = events_all.filter(e => e.type === 'nap_end' && e.ts > ev.ts).sort((a,b) => a.ts - b.ts);
-        end = sortedEnds[0] || null;
+    // Probe 对象（detail 编辑预览）：尝试从事件流中查找配对
+    const isEnd = ev.type === 'WAKE' || ev.type === 'CRY_END' || ev.type === 'ROUTINE_END';
+    if (isEnd) {
+      // 查找最近的前一个 start 事件
+      var startType = ev.type === 'WAKE' ? 'SLEEP' : ev.type === 'CRY_END' ? 'CRY_START' : 'ROUTINE_START';
+      var starts = events.filter(function(e) { return isValidEvent(e) && e.type === startType && e.ts < ev.ts && String(e.id) !== String(ev.id); }).sort(function(a,b) { return b.ts - a.ts; });
+      if (starts.length > 0) {
+        return formatDurationText(ev.ts - starts[0].ts);
       }
-      if (!end) return null;
-      return formatDurationText(end.ts - ev.ts);
-    }
-    if (type === 'nap_end') {
-      let start = events_all.find(e => e.type === 'nap_start' && e.sessionId === ev.sessionId);
-      if (!start) {
-        // 回退：找到时间上紧邻之前的 nap_start
-        const sortedStarts = events_all.filter(e => e.type === 'nap_start' && e.ts < ev.ts).sort((a,b) => b.ts - a.ts);
-        start = sortedStarts[0] || null;
-      }
-      if (!start) return null;
-      return formatDurationText(ev.ts - start.ts);
-    }
-    // 仪式
-    if (type === 'ritual_start') {
-      const end = events_all.find(e => e.type === 'ritual_end' && e.sessionId === ev.sessionId);
-      if (!end) return null;
-      return formatDurationText(end.ts - ev.ts);
-    }
-    if (type === 'ritual_end') {
-      const start = events_all.find(e => e.type === 'ritual_start' && e.sessionId === ev.sessionId);
-      if (!start) return null;
-      return formatDurationText(ev.ts - start.ts);
-    }
-    // 放下：放下时间 - 入睡时间（入睡取最近的 nap_start）
-    if (type === 'putdown_start') {
-      const sleep = findNearestSleepStart(ev.ts);
-      if (!sleep) return null;
-      return formatDurationText(ev.ts - sleep.ts);
-    }
-    // 哭闹
-    if (type === 'cry_start') {
-      const end = events_all.find(e => e.type === 'cry_end' && e.sessionId === ev.sessionId);
-      if (!end) return null;
-      return formatDurationText(end.ts - ev.ts);
-    }
-    if (type === 'cry_end') {
-      const start = events_all.find(e => e.type === 'cry_start' && e.sessionId === ev.sessionId);
-      if (!start) return null;
-      return formatDurationText(ev.ts - start.ts);
     }
     return null;
-  }
-
-  function findNearestSleepStart(ts) {
-    const starts = events.filter(e => isValidEvent(e) && e.type === 'nap_start').sort((a, b) => a.ts - b.ts);
-    if (!starts.length) return null;
-    let best = null;
-    for (const s of starts) {
-      if (s.ts <= ts && (!best || s.ts > best.ts)) best = s;
-    }
-    return best;
   }
 
   function formatDurationText(ms) {
@@ -4422,24 +4421,48 @@ function dismissInstallGuide(){
     currentDetailEventId = targetId;
 
     // 填充表单字段
-    document.getElementById('detailType').textContent = ev.title || ev.type || '--';
     var dateVal = formatDateInput(ev.ts);
     var timeVal = formatTimeInput(ev.ts);
     document.getElementById('detailDate').value = dateVal;
     document.getElementById('detailTime').value = timeVal;
-    // 格式化显示文本
     var dp = dateVal.split('-');
     document.getElementById('detailDateText').textContent = dp[0] + '年' + parseInt(dp[1]) + '月' + parseInt(dp[2]) + '日';
     document.getElementById('detailTimeText').textContent = timeVal;
     document.getElementById('detailNote').value = ev.detail || '';
     document.getElementById('detailIntensity').value = (ev.intensity !== undefined && ev.intensity !== null) ? String(ev.intensity) : '';
-    // v3.4.0 需求③：强度字段仅对哭闹类事件显示，其它类型隐藏整行
+    // v3.6.0: 强度字段仅对 CRY_START 显示
     var detailIntensityRow = document.getElementById('detailIntensityRow');
     if (detailIntensityRow) {
-      detailIntensityRow.style.display = (ev.type === 'cry' || ev.type === 'cry_start') ? '' : 'none';
+      detailIntensityRow.style.display = (ev.type === 'CRY_START') ? '' : 'none';
     }
 
-    // 更新时长
+    // v3.6.0: 同组类型切换 (type selector)
+    var typeRow = document.getElementById('detailTypeRow');
+    if (typeRow) {
+      typeRow.style.display = '';
+      var typeSelect = document.getElementById('detailTypeSelect');
+      if (typeSelect) {
+        // 填充同组选项
+        var groupTypes = getGroupTypes(ev.type);
+        typeSelect.innerHTML = groupTypes.map(function(t) { return '<option value="' + t + '"' + (t === ev.type ? ' selected' : '') + '>' + (TYPE_TITLE_MAP[t] || t) + '</option>'; }).join('');
+        typeSelect.onchange = function() {
+          ev.type = typeSelect.value;
+          // 同步更新强度行可见性
+          if (detailIntensityRow) {
+            detailIntensityRow.style.display = (ev.type === 'CRY_START') ? '' : 'none';
+          }
+          updateDetailDuration();
+        };
+      }
+    }
+
+    // v3.6.0: 时长显示 — 结束型只读显示，开始型隐藏
+    var durRow = document.getElementById('detailDurationRow');
+    if (durRow) {
+      var isEnd = ev.type === 'WAKE' || ev.type === 'CRY_END' || ev.type === 'ROUTINE_END';
+      durRow.style.display = isEnd ? '' : 'none';
+    }
+
     updateDetailDuration();
 
     // 额外信息区（记录者）
@@ -4472,17 +4495,37 @@ function dismissInstallGuide(){
     return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
   }
 
+  // v3.6.0: 获取同组可选类型列表
+  function getGroupTypes(type) {
+    var groups = {
+      'SLEEP': ['SLEEP', 'WAKE'],
+      'WAKE': ['SLEEP', 'WAKE'],
+      'CRY_START': ['CRY_START', 'CRY_END'],
+      'CRY_END': ['CRY_START', 'CRY_END'],
+      'ROUTINE_START': ['ROUTINE_START', 'ROUTINE_END'],
+      'ROUTINE_END': ['ROUTINE_START', 'ROUTINE_END'],
+      'PICKUP': ['PICKUP', 'PUTDOWN'],
+      'PUTDOWN': ['PICKUP', 'PUTDOWN'],
+      'FEED': ['FEED'],
+      'SOOTHE': ['SOOTHE']
+    };
+    return groups[type] || [type];
+  }
+
   function saveEventDetail() {
     const event = findEventById(currentDetailEventId);
     if (!event) { showToast('⚠ 无法保存，请刷新'); return; }
     event.time = document.getElementById('detailTime').value;
     event.detail = document.getElementById('detailNote').value;
     const intensityVal = document.getElementById('detailIntensity').value;
-    // v3.4.0 需求③：仅当强度行可见（哭闹类事件）时才写入 intensity，其它类型不写
-    const intensityRowEl = document.getElementById('detailIntensityRow');
-    const intensityVisible = intensityRowEl ? (intensityRowEl.style.display !== 'none') : (event.type === 'cry');
-    if (intensityVisible && intensityVal !== '' && intensityVal !== undefined) event.intensity = parseInt(intensityVal);
-    else if (event.intensity !== undefined) delete event.intensity;
+    // v3.6.0: 仅当类型为 CRY_START 时才写入 intensity
+    if (event.type === 'CRY_START' && intensityVal !== '' && intensityVal !== undefined) event.intensity = parseInt(intensityVal);
+    else if (event.intensity !== undefined && event.type !== 'CRY_START') delete event.intensity;
+    // 读取 type 选择器（如果存在）
+    var typeSelect = document.getElementById('detailTypeSelect');
+    if (typeSelect && typeSelect.value) {
+      event.type = typeSelect.value;
+    }
     const dateStr = document.getElementById('detailDate').value;
     const parts = event.time.split(':');
     if (parts.length === 2 && dateStr) {
@@ -4495,6 +4538,8 @@ function dismissInstallGuide(){
       newTs.setHours(parseInt(parts[0]), parseInt(parts[1]), 0, 0);
       event.ts = newTs.getTime();
     }
+    // v3.6.0: 保存后触发全量重新配对
+    recalcDurations();
     saveEvents();
     window.CloudSync?.pushEventToCloud?.(event);
     closeEventDetail();
@@ -4503,6 +4548,8 @@ function dismissInstallGuide(){
     updatePrediction();
     renderDataLog();
     renderDataAnalytics();
+    restoreToggleStates();
+    updateCounters();
     showToast('✅ 已保存');
   }
 
@@ -4541,6 +4588,8 @@ function dismissInstallGuide(){
     const idx = events.indexOf(event);
     if (idx >= 0) events.splice(idx, 1);
     window.CloudSync?.deleteEvent?.(event.id || idx);
+    // v3.6.0: 删除后触发全量重新配对
+    recalcDurations();
     saveEvents();
     closeEventDetail();
     renderTimeline();
@@ -4548,6 +4597,8 @@ function dismissInstallGuide(){
     updatePrediction();
     renderDataLog();
     renderDataAnalytics();
+    restoreToggleStates();
+    updateCounters();
     showToast('🗑 已删除');
   }
 
@@ -4727,10 +4778,9 @@ function dismissInstallGuide(){
   // ============ 日志页渲染 ============
   function renderLogDay() {
     // 简易统计
-    // v3.4.1：null 防御 + 本地时区归日（该函数挂在 addEvent 刷新链上，脏数据会中断整条刷新）
     const todayEvents = events.filter(e => isValidEvent(e) && isSameLocalDay(e.ts, new Date()));
-    const feedCount = todayEvents.filter(e => e.type === 'feed').length;
-    const cryEvents = todayEvents.filter(e => e.type === 'cry');
+    const feedCount = todayEvents.filter(e => e.type === 'FEED').length;
+    const cryEvents = todayEvents.filter(e => e.type === 'CRY_START' || e.type === 'CRY_END');
     // 保持日志页示例数据不变（实际应用中会同步）
   }
 
@@ -4941,11 +4991,11 @@ function dismissInstallGuide(){
     const panel = document.getElementById('dataPanelLog');
     if (!panel) return;
     const todayEvents = eventsOnDate(selectedDate);
-    const wakeUps = todayEvents.filter(e => e.type === 'nap_start' && e.title === '起床');
-    const morningWake = todayEvents.filter(e => e.type === 'nap_end' && new Date(e.ts).getHours() < 10).sort((a,b) => a.ts-b.ts)[0] || null;
-    const feeds = todayEvents.filter(e => e.type === 'feed_start');
-    const cries = todayEvents.filter(e => e.type === 'cry');
-    const soothes = todayEvents.filter(e => e.type === 'soothe');
+    const wakeUps = todayEvents.filter(e => e.type === 'SLEEP' && e.title === '起床');
+    const morningWake = todayEvents.filter(e => e.type === 'WAKE' && new Date(e.ts).getHours() < 10).sort((a,b) => a.ts-b.ts)[0] || null;
+    const feeds = todayEvents.filter(e => e.type === 'FEED');
+    const cries = todayEvents.filter(e => e.type === 'CRY_START' || e.type === 'CRY_END');
+    const soothes = todayEvents.filter(e => e.type === 'SOOTHE');
 
     // 核算总览
     const sleepPairs = getSleepPairsForDate(selectedDate);
@@ -4961,16 +5011,16 @@ function dismissInstallGuide(){
       const segmentStartTs = previousWakeTs ?? dayBounds(selectedDate).start;
       const ww = previousWakeTs != null ? Math.round((pair.start.ts - previousWakeTs) / 60000) : null;
       const putdown = todayEvents
-        .filter(event => event.type === 'putdown_start' && event.ts >= segmentStartTs && event.ts <= pair.start.ts)
+        .filter(event => event.type === 'PUTDOWN' && event.ts >= segmentStartTs && event.ts <= pair.start.ts)
         .sort((a, b) => b.ts - a.ts)[0] || null;
       const ritual = todayEvents
-        .filter(event => event.type === 'ritual_start' && event.ts >= segmentStartTs && event.ts <= pair.start.ts)
+        .filter(event => event.type === 'ROUTINE_START' && event.ts >= segmentStartTs && event.ts <= pair.start.ts)
         .sort((a, b) => b.ts - a.ts)[0] || null;
       if (pair.end) previousWakeTs = pair.end.ts;
       return { ...pair, name: '小觉' + (index + 1), putdown, ritual, ww: ww != null && ww >= 0 ? ww : null };
     });
-    const nightRitual = nightPair ? todayEvents.filter(event => event.type === 'ritual_start' && event.ts <= nightPair.start.ts).sort((a,b) => b.ts-a.ts)[0] : null;
-    const nightPutdown = nightPair ? todayEvents.filter(event => event.type === 'putdown_start' && event.ts <= nightPair.start.ts).sort((a,b) => b.ts-a.ts)[0] : null;
+    const nightRitual = nightPair ? todayEvents.filter(event => event.type === 'ROUTINE_START' && event.ts <= nightPair.start.ts).sort((a,b) => b.ts-a.ts)[0] : null;
+    const nightPutdown = nightPair ? todayEvents.filter(event => event.type === 'PUTDOWN' && event.ts <= nightPair.start.ts).sort((a,b) => b.ts-a.ts)[0] : null;
     const recorderText = event => event ? [event.recorderRole || event.recorder_role, event.recorderName || event.recorder_name].filter(Boolean).join(' · ') : '';
     const dateLabel = `${selectedDate.getMonth()+1}月${selectedDate.getDate()}日 周${['日','一','二','三','四','五','六'][selectedDate.getDay()]}`;
     const completedSleeps = sleepPairs.filter(pair=>pair.duration!=null).length;
@@ -5023,7 +5073,7 @@ function dismissInstallGuide(){
     }
 
     // 夜醒/夜奶
-    const nightWakes = todayEvents.filter(e => (e.type==='cry' || e.type==='feed_start') && (new Date(e.ts).getHours()>=19 || new Date(e.ts).getHours()<7));
+    const nightWakes = todayEvents.filter(e => (e.type==='CRY_START' || e.type==='CRY_END' || e.type==='FEED') && (new Date(e.ts).getHours()>=19 || new Date(e.ts).getHours()<7));
     if (nightWakes.length) {
       html += `<div class="log-section"><div class="log-section-title">🔔 夜间活动</div>`;
       nightWakes.forEach(e=>{
@@ -5075,8 +5125,8 @@ function dismissInstallGuide(){
       const pairs = getSleepPairsForDate(date).filter(pair => pair.duration != null);
       const dayPairs = pairs.filter(pair => !pair.night);
       const nightPairs = pairs.filter(pair => pair.night);
-      const settleMinutes = pairedDurations(dayEvents, 'putdown_start', ['nap_start']);
-      const feedMinutes = pairedDurations(dayEvents, 'feed_start', ['feed_end']);
+      const settleMinutes = pairedDurations(dayEvents, 'PUTDOWN', ['SLEEP']);
+      const feedMinutes = pairedDurations(dayEvents, 'FEED', []); // FEED is single-event, no duration
       const morningStart = getMorningStartEvent(date);
       let previousWake = morningStart?.ts || null;
       const wakeWindows = [];
@@ -5085,16 +5135,16 @@ function dismissInstallGuide(){
         if (pair.end) previousWake = pair.end.ts;
       });
       const sleepStarts = dayEvents.filter(isSleepStart);
-      const ritualStarts = dayEvents.filter(event => event.type === 'ritual_start');
-      const cries = dayEvents.filter(event => event.type === 'cry');
+      const ritualStarts = dayEvents.filter(event => event.type === 'ROUTINE_START');
+      const cries = dayEvents.filter(event => event.type === 'CRY_START' || event.type === 'CRY_END');
       dailyStats.push({
         date, hasData:dayEvents.length>0, eventCount:dayEvents.length,
         daySleep:dayPairs.reduce((sum,pair)=>sum+pair.duration,0),
         nightSleep:nightPairs.reduce((sum,pair)=>sum+pair.duration,0),
         napCount:dayPairs.length,
         napDurations:dayPairs.map(pair=>pair.duration), wakeWindows, settleMinutes, feedMinutes,
-        feedCount:dayEvents.filter(event=>event.type==='feed_start').length,
-        cryCount:cries.length, sootheCount:dayEvents.filter(event=>event.type==='soothe').length,
+        feedCount:dayEvents.filter(event=>event.type==='FEED').length,
+        cryCount:cries.length, sootheCount:dayEvents.filter(event=>event.type==='SOOTHE').length,
         cryIntensities:cries.map(event=>Number(event.intensity)).filter(Number.isFinite),
         ritualCoverage:sleepStarts.length ? Math.min(1, ritualStarts.length / sleepStarts.length) : null,
         bedtime:nightPairs[0]?.start?.ts || null
@@ -6100,12 +6150,11 @@ function dismissInstallGuide(){
 
   // Comfort 单击计数（安抚）— 注意：已由上方通用 .quick-action[data-toggle] 统一处理，此处不再重复绑定
   function updateCounters() {
-    // v3.4.1：null 防御 + 本地时区归日（该函数挂在 addEvent 刷新链上，脏数据会中断整条刷新）
     const today = new Date();
-    const feeds = events.filter(e => isValidEvent(e) && isSameLocalDay(e.ts, today) && e.type === 'feed_start').length;
-    const soothes = events.filter(e => isValidEvent(e) && isSameLocalDay(e.ts, today) && (e.type === 'comfort_record' || e.type === 'soothe')).length;
+    const feeds = events.filter(e => isValidEvent(e) && isSameLocalDay(e.ts, today) && e.type === 'FEED').length;
+    const soothes = events.filter(e => isValidEvent(e) && isSameLocalDay(e.ts, today) && e.type === 'SOOTHE').length;
     const fc = document.getElementById('feedCounter'); if (fc) fc.textContent = '今日 ' + feeds + ' 次';
-    const sc = document.getElementById('comfortStatus');
+    const sc = document.getElementById('sootheStatus');
     if (sc) { sc.style.display = 'block'; sc.textContent = '今日 ' + soothes + ' 次'; }
   }
 
@@ -6122,17 +6171,17 @@ function dismissInstallGuide(){
   });
 
   document.getElementById('confirmCry').addEventListener('click', () => {
-    const intensity = document.querySelector('.cry-intensity-btn.selected')?.dataset?.intensity || '2';
+    const intensity = document.querySelector('.cry-intensity-btn.selected')?.dataset?.intensity || '3';
     const tags = Array.from(document.querySelectorAll('.cry-tag.selected')).map(t => t.dataset.tag);
     const tagLabels = { overtired:'过疲', hungry:'饥饿', gas:'胀气', environment:'环境', teething:'长牙', other:'其他' };
     const tagText = tags.length ? ' · ' + tags.map(tag => tagLabels[tag] || tag).join('、') : '';
     closeCryPicker();
-    toggles.cry.active = false;
-    updateToggleUI('cry');
     const emoji = { '1': '😌', '2': '😣', '3': '😭', '4': '😱', '5': '🆘' }[intensity] || '';
-    addEvent({ type: 'cry', title: '哭闹', detail: pendingCryDurationText + '·强度' + intensity + '·' + emoji + tagText, intensity: parseInt(intensity), tags, ts: Date.now() });
-    pendingCryDurationText = '';
-    showToast('😢 哭闹已记录 · 强度 ' + intensity + tagText);
+    const ts = Date.now();
+    addEvent({ type: 'CRY_START', title: '哭闹开始', detail: '强度' + intensity + '·' + emoji + tagText, intensity: parseInt(intensity), tags, ts });
+    showToast('😢 哭闹开始已记录 · 强度 ' + intensity + tagText);
+    updateToggleUI('cry');
+    tryCallCloud('cry', 'start', ts);
   });
 
   // 段控件
@@ -6480,8 +6529,8 @@ function dismissInstallGuide(){
         mergedMap.set(key, localEvent ? mergeEventRecords(localEvent, remoteEvent) : remoteEvent);
       });
       events = Array.from(mergedMap.values()).map(normalizeEvent).filter(Boolean).sort((a,b)=>a.ts-b.ts);
+      recalcDurations();
       localStorage.setItem(STORAGE_KEY, JSON.stringify(events));
-      Object.values(toggles).forEach(toggle => { toggle.active=false; toggle.startTime=null; toggle.sessionId=null; });
       restoreToggleStates();
       applyIdentityRole();
       renderDateCarousel(); renderTimeline(); renderLogDay(); updatePrediction(); renderDataLog(); renderDataAnalytics();
@@ -6520,21 +6569,15 @@ function dismissInstallGuide(){
       window.updateWelcome?.();
     },
     applyState: (stateMap) => {
-      // 云端状态机回调：仅校正本地 toggle 显示，不覆盖开始时间
-      ['feed','ritual','putdown','cry','nap'].forEach(localKey => {
-        const cloudType = localKey === 'nap' ? 'sleep' : localKey;
-        if (stateMap[cloudType] !== undefined) {
-          const serverState = stateMap[cloudType]; // 'started' / 'ended'
+      // v3.6.0: 云端状态机回调 — 校正本地 toggle 显示
+      ['feed','soothe','pickup','sleep','cry','routine'].forEach(localKey => {
+        if (stateMap[localKey] !== undefined) {
           const t = toggles[localKey];
           if (!t) return;
-          const shouldActive = serverState === 'started';
-          if (t.active !== shouldActive) {
-            t.active = shouldActive;
-            if (!shouldActive) t.startTime = null;
-            updateToggleUI(localKey);
-          }
         }
       });
+      // 刷新所有 toggle UI
+      Object.keys(toggles).forEach(key => updateToggleUI(key));
     },
     showIdentityPicker: () => {
       // onboarding 未完成则挂起，待 onOnboardingFinish 补开 [Q3][P1-6]
@@ -6580,7 +6623,9 @@ function dismissInstallGuide(){
   });
 
   // ============ 初始化 ============
+  recalcDurations(); // v3.6.0: 启动时重新计算所有事件配对时长
   restoreToggleStates();
+  updateCounters();
   initSettings();
   renderDateCarousel();
   setupDateCarouselInfiniteScroll();
@@ -6679,7 +6724,7 @@ function dismissInstallGuide(){
   // 导致 PWA 与 Safari 浏览器行为不一致。这里主动做版本化注册 + 强制接管 + 一次性刷新。
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
     (function initServiceWorker() {
-      var APP_VERSION = '3.5.0';
+      var APP_VERSION = '3.6.0';
       var RELOAD_FLAG = 'babysleep_sw_reloaded_v' + APP_VERSION;
       // 注册脚本 URL 带版本号：scope 相同但 scriptURL 变化时浏览器会安装并替换旧 SW，
       // 这是绕过「旧 SW 不更新」的可靠手段，等价于一次强制 unregister + register。
