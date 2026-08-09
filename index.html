@@ -3606,7 +3606,7 @@ function dismissInstallGuide(){
    */
   function recalcDurations() {
     // 1. 清空所有 duration
-    events.forEach(e => { if (e.duration !== undefined) delete e.duration; });
+    events.forEach(e => { if (e.duration !== undefined) delete e.duration; delete e._hasPair; });
 
     /**
      * 对一组 Toggle 事件类型执行栈配对：开始型入栈，结束型匹配最早未配对的开始型。
@@ -3623,7 +3623,7 @@ function dismissInstallGuide(){
         } else if (ev.type === endType && stack.length > 0) {
           const start = stack.shift();
           const dur = ev.ts - start.ts;
-          if (dur >= 0) ev.duration = dur;
+          if (dur >= 0) { ev.duration = dur; start._hasPair = true; }
         }
         // 未配对结束型或无开始型的结束型：duration 保持 undefined
       }
@@ -4246,6 +4246,25 @@ function dismissInstallGuide(){
     return 'other';
   }
 
+  // v3.6.0: 事件类型独立配色（7色差异化），用于时间轴图标背景
+  function eventStyle(ev) {
+    const t = String(ev?.type || '');
+    switch (t) {
+      case 'SLEEP':   return { icon:'😴', label:'入睡',  bg:'rgba(79,127,217,0.12)',  color:'#4F7FD9', dotBg:'#4F7FD9' };
+      case 'WAKE':    return { icon:'😴', label:'醒来',  bg:'rgba(79,127,217,0.12)',  color:'#4F7FD9', dotBg:'#4F7FD9' };
+      case 'FEED':    return { icon:'🍼', label:'喂奶',  bg:'rgba(139,92,246,0.12)',   color:'#8B5CF6', dotBg:'#A78BFA' };
+      case 'PICKUP':  return { icon:'🤱', label:'抱起',  bg:'rgba(44,167,161,0.12)',  color:'#2CA7A1', dotBg:'#2CA7A1' };
+      case 'PUTDOWN': return { icon:'🛏️', label:'放下',  bg:'rgba(44,167,161,0.10)',  color:'#0D9488', dotBg:'#14B8A6' };
+      case 'SOOTHE':  return { icon:'🤗', label:'安抚',  bg:'rgba(249,115,22,0.12)',  color:'#F97316', dotBg:'#FB923C' };
+      case 'ROUTINE_START':
+      case 'ROUTINE_END':
+                      return { icon:'📖', label:'仪式',  bg:'rgba(217,119,6,0.12)',   color:'#D97706', dotBg:'#F59E0B' };
+      case 'CRY_START':
+      case 'CRY_END': return { icon:'😢', label:'哭闹',  bg:'rgba(236,72,153,0.12)',  color:'#EC4899', dotBg:'#F472B6' };
+      default:        return { icon:'📝', label:'其他',  bg:'rgba(79,209,197,0.10)',  color:'#14B8A6', dotBg:'#4FD1C5' };
+    }
+  }
+
   // v3.6.0: 时间轴图标按事件类型精细映射
   function iconForEvent(ev) {
     const t = String(ev?.type || '');
@@ -4309,13 +4328,12 @@ function dismissInstallGuide(){
     container.innerHTML = sorted.length ? sorted.map(function(ev) {
       var cat = eventCategory(ev);
       var evId = String(ev.id);
-      var s = catStyle[cat] || catStyle.other;
-      s = Object.assign({}, s, { icon: iconForEvent(ev) });
+      var s = eventStyle(ev);
       var rec = ev.recorderName || ev.recorder_name;
       var role = ev.recorderRole || ev.recorder_role;
       var dur = computeDurationForEvent(ev);
       // v3.6.0: 开始型无配对 → 显示"进行中"
-      var isStartUnpaired = (ev.type === 'SLEEP' || ev.type === 'CRY_START' || ev.type === 'ROUTINE_START') && (ev.duration === undefined || ev.duration === null);
+      var isStartUnpaired = (ev.type === 'SLEEP' || ev.type === 'CRY_START' || ev.type === 'ROUTINE_START') && !ev._hasPair;
       if (isStartUnpaired && !dur) {
         dur = '🔄 进行中';
       }
